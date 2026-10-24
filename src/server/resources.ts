@@ -1,7 +1,8 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type pg from 'pg';
 import { config } from '../config.js';
-import { topExports, type Contract } from '../db/index.js';
+import { streamTopExports, streamServiceExports, type Contract } from '../db/index.js';
+import { collectText, jsonArray } from './json-stream.js';
 
 export function toManifest(c: Contract) {
   return {
@@ -26,10 +27,24 @@ export function registerResources(server: McpServer, pool: pg.Pool): void {
       mimeType: 'application/json',
     },
     async (uri) => {
-      const rows = await topExports(pool, config.search.resourceLimit);
-      return {
-        contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(rows.map(toManifest), null, 2) }],
-      };
+      const text = await collectText(jsonArray(streamTopExports(pool, config.search.resourceLimit), toManifest));
+      return { contents: [{ uri: uri.href, mimeType: 'application/json', text }] };
+    },
+  );
+
+  server.registerResource(
+    'service-exports',
+    new ResourceTemplate('codebase://exports/service/{name}', { list: undefined }),
+    {
+      title: 'Service exports',
+      description: 'Exports of one indexed service, ranked by priority',
+      mimeType: 'application/json',
+    },
+    async (uri, { name }) => {
+      const service = Array.isArray(name) ? name[0] : name;
+      if (!service) throw new Error('Service name is required');
+      const text = await collectText(jsonArray(streamServiceExports(pool, decodeURIComponent(service), config.search.resourceLimit), toManifest));
+      return { contents: [{ uri: uri.href, mimeType: 'application/json', text }] };
     },
   );
 }

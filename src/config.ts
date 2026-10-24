@@ -32,6 +32,10 @@ const schema = z.object({
     tier1Limit: int.default(12),
     /** Rows returned by the codebase://exports/high-priority resource. */
     resourceLimit: int.default(50),
+    /** Row cap (SQL LIMIT) for list-style tools such as list_file_exports and find_symbol. */
+    maxRows: int.default(500),
+    /** Rows fetched per round trip when streaming results from PostgreSQL. */
+    streamBatchSize: int.default(100),
   }).prefault({}),
   sync: z.object({
     /** Skip reading a file when size and mtime match the stored values. */

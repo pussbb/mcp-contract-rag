@@ -18,6 +18,7 @@ database:
 | `database.poolSize` | `4` | pg pool size |
 | `triage.enabled` / `url` / `model` / `timeoutMs` / `keep` | on, LM Studio on `:1234`, `local-model`, `8000`, `3` | Tier 2 local LLM; any failure falls back to ranked rows |
 | `search.tier1Limit` / `resourceLimit` | `12` / `50` | rows fetched before triage / rows in the high-priority resource |
+| `search.maxRows` / `streamBatchSize` | `500` / `100` | SQL `LIMIT` for list-style tools / rows per round trip when streaming from PostgreSQL |
 | `sync.mtimePrecheck` | `true` | skip reading files whose size and mtime match the stored values |
 | `ranking.folderWeights` | utils/helpers 50, extensions/hooks 40, ... | `priority_score` bonus by case-insensitive path fragment, first match wins |
 | `ranking.inboundEdgeWeight` / `inboundEdgeCap` | `2` / `40` | bonus per importing file, and its cap |

@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { streamRows } from './stream.js';
 
 export interface Contract {
   id: number;
@@ -63,10 +64,77 @@ export async function searchExports(pool: pg.Pool, query: string, limit: number,
   return rows;
 }
 
-export async function topExports(pool: pg.Pool, limit: number): Promise<Contract[]> {
+/** Top contracts by priority, streamed. */
+export function streamTopExports(pool: pg.Pool, limit: number): AsyncGenerator<Contract> {
+  return streamRows<Contract>(pool, `${SELECT} ${FROM} ORDER BY e.priority_score DESC, e.entity_name LIMIT $1`, [limit]);
+}
+
+/** Find exports by exact name match, streamed. */
+export function streamSymbols(pool: pg.Pool, name: string, limit: number, service?: string): AsyncGenerator<Contract> {
+  const params: (string | number)[] = [name];
+  let where = 'WHERE e.entity_name = $1';
+  if (service) {
+    params.push(service);
+    where += ` AND e.service_name = $${params.length}`;
+  }
+  params.push(limit);
+  return streamRows<Contract>(
+    pool,
+    `${SELECT} ${FROM} ${where} ORDER BY e.priority_score DESC, e.entity_name LIMIT $${params.length}`,
+    params,
+  );
+}
+
+/** All exports of one file, streamed. */
+export function streamFileExports(pool: pg.Pool, service: string, path: string, limit: number): AsyncGenerator<Contract> {
+  return streamRows<Contract>(
+    pool,
+    `${SELECT} ${FROM} WHERE e.service_name = $1 AND e.file_path = $2 ORDER BY e.entity_name LIMIT $3`,
+    [service, path, limit],
+  );
+}
+
+/**
+ * Files that import a file. The graph links files, not individual exports, so this cannot say
+ * which export an importer uses.
+ */
+export async function getImporters(pool: pg.Pool, service: string, path: string): Promise<string[]> {
   const { rows } = await pool.query(
-    `${SELECT} ${FROM} ORDER BY e.priority_score DESC, e.entity_name LIMIT $1`,
-    [limit],
+    `SELECT DISTINCT from_file
+     FROM codebase_edges
+     WHERE service_name = $1 AND to_file = $2
+     ORDER BY from_file`,
+    [service, path],
+  );
+  return rows.map((r) => r.from_file as string);
+}
+
+/** All exports of one service ranked by priority, streamed. */
+export function streamServiceExports(pool: pg.Pool, service: string, limit: number): AsyncGenerator<Contract> {
+  return streamRows<Contract>(
+    pool,
+    `${SELECT} ${FROM} WHERE e.service_name = $1 ORDER BY e.priority_score DESC, e.entity_name LIMIT $2`,
+    [service, limit],
+  );
+}
+
+/** Search exports by entity type with an optional keyword filter, best first. */
+export async function searchByType(pool: pg.Pool, type: string, query?: string, service?: string, limit = 50): Promise<Contract[]> {
+  const params: (string | number)[] = [type];
+  let where = 'WHERE e.entity_type = $1';
+  if (service) {
+    params.push(service);
+    where += ` AND e.service_name = $${params.length}`;
+  }
+  const tokens = query ? tokenize(query) : [];
+  const relevance = tokens.length ? buildRelevanceClause(tokens, params) : '0';
+  params.push(limit);
+  const { rows } = await pool.query(
+    `SELECT * FROM (${SELECT}, ${relevance} AS relevance ${FROM} ${where}) s
+      ${tokens.length ? 'WHERE relevance > 0' : ''}
+      ORDER BY relevance * 10 + priority_score DESC, name
+      LIMIT $${params.length}`,
+    params,
   );
   return rows;
 }

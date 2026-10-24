@@ -16,6 +16,8 @@ triage:                       # Tier 2: local LLM picks the best contracts (LM S
 search:
   tier1Limit: 12              # rows fetched from PostgreSQL before triage
   resourceLimit: 50           # rows in codebase://exports/high-priority
+  maxRows: 500                # SQL LIMIT for list-style tools (list_file_exports, find_symbol, ...)
+  streamBatchSize: 100        # rows per round trip when streaming from PostgreSQL
 
 sync:
   mtimePrecheck: true         # skip reading files whose size and mtime are unchanged
