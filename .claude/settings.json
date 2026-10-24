@@ -3,7 +3,25 @@
     "PreToolUse": [
       {
         "matcher": "mcp__contract-rag__.*",
-        "hooks": [{ "type": "command", "command": "yarn --silent tsx .claude/hooks/pre-tool-sync.ts", "timeout": 15 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "yarn --silent tsx .claude/hooks/pre-tool-sync.ts",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__contract-rag__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "yarn --silent tsx .claude/hooks/post-tool-usage.ts",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }

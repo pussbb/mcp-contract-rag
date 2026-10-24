@@ -138,3 +138,36 @@ export async function searchByType(pool: pg.Pool, type: string, query?: string, 
   );
   return rows;
 }
+
+/** All exports in a stable order, for paging with offset/limit. */
+export function streamAllExports(pool: pg.Pool, offset: number, limit: number): AsyncGenerator<Contract> {
+  return streamRows<Contract>(
+    pool,
+    `${SELECT} ${FROM} ORDER BY e.service_name, e.file_path, e.entity_name OFFSET $1 LIMIT $2`,
+    [offset, limit],
+  );
+}
+
+export interface DependencyEdge {
+  service: string;
+  from: string;
+  to: string;
+}
+
+/** File-to-file import edges, optionally for one service, streamed. */
+export function streamEdges(pool: pg.Pool, limit: number, service?: string): AsyncGenerator<DependencyEdge> {
+  const params: (string | number)[] = [];
+  let where = '';
+  if (service) {
+    params.push(service);
+    where = 'WHERE service_name = $1';
+  }
+  params.push(limit);
+  return streamRows<DependencyEdge>(
+    pool,
+    `SELECT service_name AS service, from_file AS "from", to_file AS "to"
+       FROM codebase_edges ${where}
+      ORDER BY service_name, from_file, to_file LIMIT $${params.length}`,
+    params,
+  );
+}

@@ -10,7 +10,8 @@
     "start": "tsx src/server/index.ts",
     "typecheck": "tsc",
     "test": "tsx --test test/*.test.ts",
-    "db:up": "docker compose up -d postgres"
+    "db:up": "docker compose up -d postgres",
+    "usage": "tsx src/usage-cli.ts"
   },
   "dependencies": {
     "@babel/parser": "^8.0.8",

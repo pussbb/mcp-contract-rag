@@ -57,9 +57,20 @@ CREATE TABLE IF NOT EXISTS codebase_external_deps (
         REFERENCES codebase_files (service_name, file_path) ON DELETE CASCADE
 );
 
+-- One row per MCP tool call, written by the PostToolUse hook.
+CREATE TABLE IF NOT EXISTS codebase_tool_usage (
+    id             SERIAL PRIMARY KEY,
+    tool_name      TEXT NOT NULL,
+    called_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    session_id     TEXT,
+    input          JSONB,
+    response_bytes INT
+);
+
 CREATE INDEX IF NOT EXISTS idx_exports_name_trgm ON codebase_exports USING gin (entity_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_exports_priority ON codebase_exports (priority_score DESC);
 CREATE INDEX IF NOT EXISTS idx_graph_edges ON codebase_edges (service_name, to_file, from_file);
+CREATE INDEX IF NOT EXISTS idx_tool_usage_tool ON codebase_tool_usage (tool_name, called_at DESC);
 CREATE INDEX IF NOT EXISTS idx_external_deps_pkg ON codebase_external_deps (package_name);
 
 -- Columns added after the first release; no-ops on a fresh database.

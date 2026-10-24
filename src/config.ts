@@ -36,6 +36,14 @@ const schema = z.object({
     maxRows: int.default(500),
     /** Rows fetched per round trip when streaming results from PostgreSQL. */
     streamBatchSize: int.default(100),
+    /** Row cap (SQL LIMIT) for the dependency graph resources. */
+    graphLimit: int.default(5000),
+  }).prefault({}),
+  usage: z.object({
+    /** Record MCP tool calls through the PostToolUse hook. */
+    enabled: bool.default(true),
+    /** Also store the tool arguments (they may contain search text). */
+    storeInput: bool.default(true),
   }).prefault({}),
   sync: z.object({
     /** Skip reading a file when size and mtime match the stored values. */
