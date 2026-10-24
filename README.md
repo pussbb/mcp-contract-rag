@@ -1,11 +1,21 @@
 # mcp-contract-rag
 
-Contract-based Graph RAG MCP server. Source code stays local; the MCP client receives only JSON interface contracts (name, type, signature, description) stored in PostgreSQL.
+Contract-based Graph RAG MCP server (Node.js + TypeScript + PostgreSQL). Source code stays local; the MCP client receives only JSON interface contracts (name, type, signature, description).
 
-- `database/schema.sql` — files, exports, import-edge tables
-- `src/parser/` — crawler, MD5 incremental skip, Babel AST extraction
-- `src/triage/` — optional LM Studio (`http://localhost:1234/v1`) compression, falls back to raw ranked rows
-- `src/server/` — MCP tools (`match_internal_utilities`) and `codebase://exports/high-priority` resource
-- `.claude/hooks/pre-tool-sync.js` — incremental sync before MCP tool calls
+- `database/schema.sql`: files, exports, import edges, external deps (namespaced by `service_name`)
+- `contract-rag.yaml`: all configuration (database and PG schema, triage, ranking, ignores, languages, services)
+- `src/db/`: all SQL (pool and schema, search queries, sync writes)
+- `src/parser/`: crawler, mtime+MD5 incremental skip, Babel AST (TS/JS), Python `ast` and Roslyn (C#) extraction, import resolution
+- `src/triage/`: optional LM Studio compression (`http://localhost:1234/v1`), falls back to ranked rows
+- `src/server/`: MCP tool `match_internal_utilities` and resource `codebase://exports/high-priority`
+- `.claude/hooks/pre-tool-sync.ts`: incremental sync before MCP tool calls
 
-Status: scaffold only.
+```
+yarn install
+yarn db:up
+yarn build:dotnet   # only if you index C#
+yarn index
+yarn typecheck && yarn test
+```
+
+Docs: `docs/configuration.md`, `docs/architecture.md`, `docs/polyglot-spec.md`, `docs/concept.md`. Agent instructions: `AGENTS.md`.

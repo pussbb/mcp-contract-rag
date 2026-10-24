@@ -1,6 +1,6 @@
 # Architecture: Contract-Based Automated MCP RAG
 
-> Status: **concept**. Nothing here is implemented yet; this is the design the code will follow.
+> Status: **first implementation** (Node.js + TypeScript + PostgreSQL). Multi-service and Python support are described in [`polyglot-spec.md`](./polyglot-spec.md), which also lists open gaps. Where this page and that one differ on the schema, `polyglot-spec.md` and `database/schema.sql` win.
 
 ## 1. Paradigm
 
@@ -31,9 +31,10 @@ See [`database/schema.sql`](../database/schema.sql).
 
 | Table | Purpose |
 |---|---|
-| `codebase_files` | One row per source file: path, name, MD5 `content_hash` for incremental skips, `updated_at`. |
-| `codebase_exports` | Exported entities: `entity_name`, `entity_type` (component, hook, function, interface), `signature`, cleaned JSDoc `description`, `priority_score` (weight by folder). Unique per `(file_path, entity_name)`. |
-| `codebase_edges` | Import graph: `from_file` (consumer) to `to_file` (provider). Unique per pair. |
+| `codebase_files` | One row per source file, keyed by `(service_name, file_path)`: name, MD5 `content_hash` for incremental skips, `language`, timestamps. |
+| `codebase_exports` | Exported entities: `entity_name`, `entity_type` (component, hook, function, interface), `signature`, cleaned JSDoc `description`, `priority_score` (weight by folder). Unique per `(service_name, file_path, entity_name)`. |
+| `codebase_edges` | Import graph inside a service: `from_file` (consumer) to `to_file` (provider). |
+| `codebase_external_deps` | Third-party packages (`npm` / `pypi`) imported per file. |
 
 Indexes: trigram GIN on `entity_name` for case-insensitive keyword lookup, `priority_score DESC`, and `(to_file, from_file)` on edges.
 
@@ -69,11 +70,14 @@ Instead of static Markdown docs, the server exposes MCP resources such as `codeb
 
 ## 6. Open points
 
-- Hook matcher: `PreToolUse` fires per tool call, so the hash pass must stay fast on large trees (consider a file-watcher or mtime pre-check).
-- Triage output must be validated as JSON before it is returned; fall back to Tier 1 rows if it is not.
-- Decide how `priority_score` is computed (folder weight only, or also inbound edge count).
+Resolved:
 
-## 7. Next steps
+- Hook cost: size+mtime pre-check skips reading unchanged files (`sync.mtimePrecheck`). A file watcher would remove the remaining stat walk.
+- Triage output is validated; the model returns indexes only and any failure falls back to the Tier 1 rows.
+- `priority_score` = folder weight + per-importer bonus (capped), both set in YAML (`ranking:`).
 
-1. `src/parser/indexer.js`: file crawl and MD5 hashing, then AST extraction.
-2. `src/server/resources.js`: dynamic JSON manifests.
+Still open: HTTP transport, cross-service edges, nested C# types. See [`polyglot-spec.md`](./polyglot-spec.md).
+
+## 7. Configuration
+
+All tunables, including the PostgreSQL schema name, are in `contract-rag.yaml`: [`configuration.md`](./configuration.md).
