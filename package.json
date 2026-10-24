@@ -1,0 +1,11 @@
+{
+  "name": "mcp-contract-rag",
+  "version": "0.1.0",
+  "description": "Contract-based Graph RAG MCP server: serves TS/TSX interface contracts from PostgreSQL instead of raw source",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "index": "node src/parser/indexer.js",
+    "start": "node src/server/index.js"
+  }
+}
