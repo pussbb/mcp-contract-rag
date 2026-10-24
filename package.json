@@ -6,12 +6,14 @@
   "private": true,
   "scripts": {
     "build:dotnet": "dotnet build src/parser/dotnet/Extractor -c Release -o src/parser/dotnet/Extractor/out --nologo -v q",
-    "index": "tsx src/parser/indexer.ts",
-    "start": "tsx src/server/index.ts",
+    "index": "tsx src/cli.ts index",
+    "start": "tsx src/cli.ts serve",
     "typecheck": "tsc",
     "test": "tsx --test test/*.test.ts",
     "db:up": "docker compose up -d postgres",
-    "usage": "tsx src/usage-cli.ts"
+    "usage": "tsx src/cli.ts usage",
+    "contract-rag": "tsx src/cli.ts",
+    "install-hooks": "tsx src/cli.ts install-hooks"
   },
   "dependencies": {
     "@babel/parser": "^8.0.8",

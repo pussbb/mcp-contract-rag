@@ -20,6 +20,7 @@ database:
 | `search.tier1Limit` / `resourceLimit` | `12` / `50` | rows fetched before triage / rows in the high-priority resource |
 | `search.maxRows` / `streamBatchSize` | `500` / `100` | SQL `LIMIT` for list-style tools / rows per round trip when streaming from PostgreSQL |
 | `search.graphLimit` | `5000` | SQL `LIMIT` for the dependency graph resources |
+| `hooks.context.*` | on, 5 contracts, relevance 3, 1500 chars | `UserPromptSubmit` context injection, see [`hooks.md`](./hooks.md) |
 | `usage.enabled` / `storeInput` | `true` / `true` | `PostToolUse` hook records tool calls in `codebase_tool_usage`; `storeInput` also keeps the arguments. Read it with `yarn usage` |
 | `sync.mtimePrecheck` | `true` | skip reading files whose size and mtime match the stored values |
 | `ranking.folderWeights` | utils/helpers 50, extensions/hooks 40, ... | `priority_score` bonus by case-insensitive path fragment, first match wins |

@@ -13,7 +13,11 @@ export interface Contract {
   usedBy: number;
 }
 
-const STOPWORDS = new Set(['the', 'for', 'and', 'with', 'from', 'that', 'this', 'into', 'how', 'use']);
+const STOPWORDS = new Set([
+  'the', 'for', 'and', 'with', 'from', 'that', 'this', 'into', 'how', 'use', 'add', 'fix', 'make', 'create',
+  'update', 'change', 'implement', 'need', 'want', 'please', 'should', 'would', 'could', 'can', 'you', 'our',
+  'are', 'was', 'not', 'new', 'code', 'file', 'files', 'function', 'when', 'what', 'why', 'where', 'there',
+]);
 
 export function tokenize(query: string): string[] {
   const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3 && !STOPWORDS.has(t));
@@ -42,7 +46,7 @@ function buildRelevanceClause(tokens: string[], params: (string | number)[]): st
 }
 
 /** Tier 1: keyword match over names, descriptions and signatures, boosted by priority_score. */
-export async function searchExports(pool: pg.Pool, query: string, limit: number, service?: string): Promise<Contract[]> {
+export async function searchExports(pool: pg.Pool, query: string, limit: number, service?: string, minRelevance = 1): Promise<Contract[]> {
   const tokens = tokenize(query);
   if (!tokens.length) return [];
   const params: (string | number)[] = [];
@@ -53,10 +57,10 @@ export async function searchExports(pool: pg.Pool, query: string, limit: number,
     params.push(service);
     where = `WHERE e.service_name = $${params.length}`;
   }
-  params.push(limit);
+  params.push(minRelevance, limit);
   const { rows } = await pool.query(
     `SELECT * FROM (${SELECT}, ${relevanceClause} AS relevance ${FROM} ${where}) s
-      WHERE relevance > 0
+      WHERE relevance >= $${params.length - 1}
       ORDER BY relevance * 10 + priority_score DESC, name
       LIMIT $${params.length}`,
     params,

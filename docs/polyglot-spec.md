@@ -16,7 +16,7 @@ Source: the "Polyglot Contract-Based MCP RAG Assistant" specification. This page
 | `--service=` / `--lang=` CLI args | `yarn index [--service=NAME] [--root=PATH]`; language is per file, so no `--lang` |
 | Services configured per project | `contract-rag.yaml` `services:`, see [`configuration.md`](./configuration.md) |
 | React, **.NET** and Python services in one store | C# extractor built on Roslyn, see below |
-| `PreToolUse` hook with a 15 s timeout | `.claude/settings.json` (scoped to `mcp__contract-rag__.*`), runs `.claude/hooks/pre-tool-sync.ts`, which syncs all services and always exits 0 |
+| `PreToolUse` hook with a 15 s timeout | `.claude/settings.json` (scoped to `mcp__contract-rag__.*`), runs `contract-rag hook sync` (`src/hooks/`), which syncs all services and always exits 0; installed into projects by `install-hooks`, see [`hooks.md`](./hooks.md) |
 | `match_internal_utilities` with local LLM triage | `src/server/tools.ts` with an optional `service` filter; triage in `src/triage/lmstudio.ts` |
 | Dynamic resource `codebase://exports/high-priority` | `src/server/resources.ts` |
 

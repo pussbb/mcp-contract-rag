@@ -38,6 +38,7 @@ Installed skills are third-party instructions: read a skill before first relying
 All design documentation is in `docs/`:
 
 - [`docs/architecture.md`](docs/architecture.md): working design (storage, pipelines A/B/C, open points).
+- [`docs/hooks.md`](docs/hooks.md): how contract-rag plugs into Claude Code hooks of the projects that use it.
 - [`docs/configuration.md`](docs/configuration.md): every `contract-rag.yaml` key. Prefer adding a YAML key over a new env var or constant.
 - [`docs/polyglot-spec.md`](docs/polyglot-spec.md): multi-service, Python and .NET design, mapping to the code, deviations from the source spec, and what is not built yet.
 - [`docs/concept.md`](docs/concept.md): original concept and the list of open questions. Read before changing behavior described there.
@@ -47,4 +48,5 @@ Update the docs in the same change when you alter the design.
 ## Commands
 
 - `yarn db:up` start Postgres, `yarn index` sync all services from `contract-rag.yaml`, `yarn build:dotnet` build the C# extractor, `yarn start` run the MCP server
+- `yarn contract-rag install-hooks <project-dir>` add the Claude Code hooks to a project (`docs/hooks.md`)
 - `yarn typecheck` and `yarn test` must pass before a change is considered done

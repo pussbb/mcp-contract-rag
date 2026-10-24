@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "yarn --silent tsx .claude/hooks/pre-tool-sync.ts",
+            "command": "yarn --silent contract-rag hook sync",
             "timeout": 15
           }
         ]
@@ -18,7 +18,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "yarn --silent tsx .claude/hooks/post-tool-usage.ts",
+            "command": "yarn --silent contract-rag hook usage",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "yarn --silent contract-rag hook context",
             "timeout": 10
           }
         ]

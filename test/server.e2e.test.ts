@@ -114,7 +114,7 @@ test('resource: all exports pages with offset and limit', opts, async () => {
 
 test('PostToolUse hook records contract-rag calls only', opts, async () => {
   const env = { ...process.env, CONTRACT_RAG_CONFIG: configFile } as Record<string, string>;
-  const run = (event: object) => execFileSync('yarn', ['--silent', 'tsx', '.claude/hooks/post-tool-usage.ts'], { cwd: repo, env, input: JSON.stringify(event) });
+  const run = (event: object) => execFileSync('yarn', ['--silent', 'contract-rag', 'hook', 'usage'], { cwd: repo, env, input: JSON.stringify(event) });
   run({ tool_name: 'mcp__contract-rag__find_symbol', tool_input: { name: 'x' }, tool_response: { content: 'abc' }, session_id: 's1' });
   run({ tool_name: 'Bash', tool_input: {}, tool_response: {} });
   run({ tool_name: 'mcp__contract-rag__find_symbol' });
@@ -123,4 +123,18 @@ test('PostToolUse hook records contract-rag calls only', opts, async () => {
   assert.deepEqual(rows[0].input, { name: 'x' });
   assert.ok(rows[0].response_bytes > 0);
   assert.equal(rows[1].response_bytes, null);
+});
+
+test('UserPromptSubmit hook injects matching contracts and stays silent otherwise', opts, async () => {
+  const env = { ...process.env, CONTRACT_RAG_CONFIG: configFile } as Record<string, string>;
+  const run = (prompt: string) =>
+    execFileSync('yarn', ['--silent', 'contract-rag', 'hook', 'context'], { cwd: repo, env, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt }) }).toString();
+
+  const out = JSON.parse(run('please change how the money formatter handles locale'));
+  assert.equal(out.hookSpecificOutput.hookEventName, 'UserPromptSubmit');
+  assert.match(out.hookSpecificOutput.additionalContext, /MoneyFormatter \[class\] cs-fixture:Helpers\/MoneyFormatter\.cs/);
+
+  assert.equal(run('what is the weather like in paris today'), '');
+  assert.equal(run('/money format'), '');
+  assert.equal(run('money'), ''); // shorter than minPromptChars
 });

@@ -16,7 +16,7 @@ Single lightweight Node.js runtime.
 mcp-contract-rag/
 ├── .claude/
 │   ├── settings.json          # PreToolUse hook registration
-│   └── hooks/pre-tool-sync.js # incremental sync before MCP tool calls
+│   └── (hooks now live in src/hooks, see hooks.md)
 ├── database/schema.sql        # PostgreSQL schema
 ├── docs/architecture.md       # this file
 └── src/
@@ -45,7 +45,7 @@ Indexes: trigram GIN on `entity_name` for case-insensitive keyword lookup, `prio
 Index state is kept aligned automatically, with no manual indexing step.
 
 1. A prompt in Claude Code leads to an MCP tool call.
-2. A `PreToolUse` hook (in `.claude/settings.json`) runs `node .claude/hooks/pre-tool-sync.js`.
+2. A `PreToolUse` hook (installed into the project's Claude Code settings by `contract-rag install-hooks`, see [`hooks.md`](./hooks.md)) runs `contract-rag hook sync`.
 3. The hook walks the workspace and compares each file's MD5 with `codebase_files`. Unchanged files are skipped.
 4. For changed files, Babel parses the AST and extracts exported interfaces. Imports are resolved through `tsconfig-paths`, and one transaction updates PostgreSQL.
 

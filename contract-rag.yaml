@@ -20,6 +20,14 @@ search:
   streamBatchSize: 100        # rows per round trip when streaming from PostgreSQL
   graphLimit: 5000            # SQL LIMIT for the codebase://graph/dependencies resources
 
+hooks:                        # behavior of the Claude Code hooks installed by `contract-rag install-hooks`
+  context:                    # UserPromptSubmit: inject matching contracts into the prompt
+    enabled: true
+    limit: 5
+    minRelevance: 3           # 3 = a word of the prompt appears in an entity name
+    minPromptChars: 12
+    maxChars: 1500
+
 usage:                        # PostToolUse hook: record which contract-rag tools get called (`yarn usage`)
   enabled: true
   storeInput: true            # also keep tool arguments (may contain search text)

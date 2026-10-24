@@ -327,7 +327,7 @@ export async function syncAll({ pool, log, services = config.services }: SyncOpt
   }
 }
 
-/** CLI: `yarn index [--service=NAME] [--root=PATH]`. --root defines an ad-hoc single service. */
+/** CLI: `contract-rag index [--service=NAME] [--root=PATH]`. --root defines an ad-hoc single service. */
 function parseArgs(argv: string[]): Record<string, string> {
   return Object.fromEntries(
     argv.filter((a) => a.startsWith('--')).map((a) => {
@@ -337,12 +337,17 @@ function parseArgs(argv: string[]): Record<string, string> {
   );
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = parseArgs(process.argv.slice(2));
+export async function runIndexCli(argv: string[]): Promise<void> {
+  const args = parseArgs(argv);
   let services = config.services;
   if (args.root) services = [{ name: args.service ?? path.basename(path.resolve(args.root)), root: path.resolve(args.root), ignoreDirs: [] }];
   else if (args.service) services = services.filter((s) => s.name === args.service);
-  syncAll({ services, log: (m) => console.error(m) })
-    .then((stats) => console.log(stats))
-    .catch((err) => { console.error(err); process.exit(1); });
+  try {
+    console.log(await syncAll({ services, log: (m) => console.error(m) }));
+  } catch (err) {
+    console.error(err);
+    process.exitCode = 1;
+  }
 }
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) await runIndexCli(process.argv.slice(2));

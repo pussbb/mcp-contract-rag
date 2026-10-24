@@ -39,6 +39,20 @@ const schema = z.object({
     /** Row cap (SQL LIMIT) for the dependency graph resources. */
     graphLimit: int.default(5000),
   }).prefault({}),
+  hooks: z.object({
+    /** UserPromptSubmit hook: add matching internal contracts to the prompt before Claude starts. */
+    context: z.object({
+      enabled: bool.default(true),
+      /** Max contracts injected. */
+      limit: int.default(5),
+      /** Minimum relevance score (3 = a query word appears in an entity name). */
+      minRelevance: int.default(3),
+      /** Prompts shorter than this are ignored. */
+      minPromptChars: int.default(12),
+      /** Cap on the injected text. */
+      maxChars: int.default(1500),
+    }).prefault({}),
+  }).prefault({}),
   usage: z.object({
     /** Record MCP tool calls through the PostToolUse hook. */
     enabled: bool.default(true),
