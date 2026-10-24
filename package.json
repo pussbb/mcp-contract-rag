@@ -5,7 +5,26 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "index": "node src/parser/indexer.js",
-    "start": "node src/server/index.js"
+    "build:dotnet": "dotnet build src/parser/dotnet/Extractor -c Release -o src/parser/dotnet/Extractor/out --nologo -v q",
+    "index": "tsx src/parser/indexer.ts",
+    "start": "tsx src/server/index.ts",
+    "typecheck": "tsc",
+    "test": "tsx --test test/*.test.ts",
+    "db:up": "docker compose up -d postgres"
+  },
+  "dependencies": {
+    "@babel/parser": "^8.0.8",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "pg": "^8.23.1",
+    "tsconfig-paths": "^4.2.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@babel/types": "^8.0.8",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

@@ -2,3 +2,8 @@ node_modules/
 .env
 *.log
 .DS_Store
+.idea
+
+src/parser/dotnet/Extractor/bin/
+src/parser/dotnet/Extractor/obj/
+src/parser/dotnet/Extractor/out/

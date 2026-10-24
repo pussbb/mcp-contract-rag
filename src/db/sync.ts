@@ -1,0 +1,143 @@
+import type pg from 'pg';
+import { config } from '../config.js';
+
+// Arbitrary constant: serializes concurrent syncs (e.g. two hook runs) on one database.
+const SYNC_LOCK_ID = 7_340_121;
+
+export interface StoredFile {
+  hash: string;
+  size: number | null;
+  mtime: number | null;
+}
+
+export interface FileRecord {
+  path: string;
+  hash: string;
+  language: string | null;
+  size: number;
+  mtime: number;
+}
+
+export interface ExportRecord {
+  path: string;
+  name: string;
+  type: string;
+  signature: string;
+  description: string | null;
+}
+
+export interface EdgeRecord {
+  from: string;
+  to: string;
+}
+
+export interface DependencyRecord {
+  path: string;
+  packageName: string;
+  ecosystem: string;
+}
+
+/** Runs `fn` in one transaction under the sync advisory lock; commits on return, rolls back on throw. */
+export async function inSyncTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [SYNC_LOCK_ID]);
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function loadStoredFiles(client: pg.PoolClient, service: string): Promise<Map<string, StoredFile>> {
+  const { rows } = await client.query(
+    'SELECT file_path, content_hash, size_bytes, mtime_ms FROM codebase_files WHERE service_name = $1',
+    [service],
+  );
+  const num = (v: string | number | null) => (v === null ? null : Number(v));
+  return new Map(rows.map((r) => [r.file_path, { hash: r.content_hash, size: num(r.size_bytes), mtime: num(r.mtime_ms) }]));
+}
+
+export async function upsertFiles(client: pg.PoolClient, service: string, files: FileRecord[]): Promise<void> {
+  if (!files.length) return;
+  await client.query(
+    `INSERT INTO codebase_files (service_name, file_path, file_name, content_hash, language, size_bytes, mtime_ms)
+     SELECT $1, p, regexp_replace(p, '^.*/', ''), h, l, s, m
+       FROM unnest($2::text[], $3::text[], $4::text[], $5::bigint[], $6::bigint[]) AS t(p, h, l, s, m)
+     ON CONFLICT (service_name, file_path) DO UPDATE
+        SET content_hash = EXCLUDED.content_hash, language = EXCLUDED.language,
+            size_bytes = EXCLUDED.size_bytes, mtime_ms = EXCLUDED.mtime_ms, updated_at = NOW()`,
+    [service, files.map((f) => f.path), files.map((f) => f.hash), files.map((f) => f.language), files.map((f) => f.size), files.map((f) => f.mtime)],
+  );
+}
+
+/** Deleting a file cascades to its exports, edges and dependencies. */
+export async function deleteFiles(client: pg.PoolClient, service: string, paths: string[]): Promise<void> {
+  if (!paths.length) return;
+  await client.query('DELETE FROM codebase_files WHERE service_name = $1 AND file_path = ANY($2)', [service, paths]);
+}
+
+/** Replaces all exports of `paths` with `rows`. */
+export async function replaceExports(client: pg.PoolClient, service: string, paths: string[], rows: ExportRecord[]): Promise<void> {
+  if (paths.length) {
+    await client.query('DELETE FROM codebase_exports WHERE service_name = $1 AND file_path = ANY($2)', [service, paths]);
+  }
+  if (!rows.length) return;
+  await client.query(
+    `INSERT INTO codebase_exports (service_name, file_path, entity_name, entity_type, signature, description)
+     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[])
+     ON CONFLICT (service_name, file_path, entity_name) DO NOTHING`,
+    [service, rows.map((r) => r.path), rows.map((r) => r.name), rows.map((r) => r.type), rows.map((r) => r.signature), rows.map((r) => r.description)],
+  );
+}
+
+/** Replaces all outgoing edges of `fromFiles` with `edges`. */
+export async function replaceEdges(client: pg.PoolClient, service: string, fromFiles: string[], edges: EdgeRecord[]): Promise<void> {
+  if (fromFiles.length) {
+    await client.query('DELETE FROM codebase_edges WHERE service_name = $1 AND from_file = ANY($2)', [service, fromFiles]);
+  }
+  if (!edges.length) return;
+  await client.query(
+    `INSERT INTO codebase_edges (service_name, from_file, to_file)
+     SELECT $1, * FROM unnest($2::text[], $3::text[]) ON CONFLICT DO NOTHING`,
+    [service, edges.map((e) => e.from), edges.map((e) => e.to)],
+  );
+}
+
+/** Replaces the third-party dependencies of `paths` with `deps`. */
+export async function replaceExternalDeps(client: pg.PoolClient, service: string, paths: string[], deps: DependencyRecord[]): Promise<void> {
+  if (paths.length) {
+    await client.query('DELETE FROM codebase_external_deps WHERE service_name = $1 AND file_path = ANY($2)', [service, paths]);
+  }
+  if (!deps.length) return;
+  await client.query(
+    `INSERT INTO codebase_external_deps (service_name, file_path, package_name, ecosystem)
+     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[]) ON CONFLICT DO NOTHING`,
+    [service, deps.map((d) => d.path), deps.map((d) => d.packageName), deps.map((d) => d.ecosystem)],
+  );
+}
+
+/** priority = folder weight + inboundEdgeWeight per inbound import edge (capped), all from contract-rag.yaml. */
+export async function recomputePriority(client: pg.PoolClient, service: string): Promise<void> {
+  const { folderWeights, inboundEdgeWeight, inboundEdgeCap } = config.ranking;
+  const params: (string | number)[] = [service, inboundEdgeWeight, inboundEdgeCap];
+  const escape = (s: string) => s.replace(/[\\%_]/g, '\\$&');
+  const whens = folderWeights.map(({ match, weight }) => {
+    params.push(`%${escape(match)}%`, weight);
+    return `WHEN ('/' || f.file_path) ILIKE $${params.length - 1} THEN $${params.length}::int`;
+  });
+  await client.query(
+    `UPDATE codebase_exports e
+        SET priority_score = (CASE ${whens.join(' ')} ELSE 0 END) + LEAST(COALESCE(d.n, 0) * $2::int, $3::int)
+       FROM codebase_files f
+       LEFT JOIN (SELECT to_file, count(*)::int AS n FROM codebase_edges WHERE service_name = $1 GROUP BY to_file) d
+         ON d.to_file = f.file_path
+      WHERE e.service_name = $1 AND f.service_name = $1 AND e.file_path = f.file_path`,
+    params,
+  );
+}

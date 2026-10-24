@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "contract-rag": {
+      "command": "yarn",
+      "args": ["--silent", "start"]
+    }
+  }
+}
