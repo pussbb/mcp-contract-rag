@@ -34,9 +34,9 @@ interface LocalEntry {
   declarator?: AstNode;
 }
 
-const MAX_SIGNATURE = 1200;
-const MAX_DESCRIPTION = 400;
-const MAX_CLASS_MEMBERS = 20;
+const MAX_SIGNATURE_LENGTH = 1200;
+const MAX_DESCRIPTION_LENGTH = 400;
+const MAX_CLASS_MEMBERS_TO_SHOW = 20;
 
 /**
  * Parse one source file and return its exported contracts and raw import specifiers.
@@ -70,7 +70,7 @@ export function analyzeSource(code: string, filePath: string): Analysis {
   const add = (name: string, { type, signature }: Described, commentHost: AstNode | undefined): void => {
     const existing = found.get(name);
     if (existing && existing.type === 'function' && type === 'function') {
-      existing.signature = truncate(`${existing.signature}\n${signature}`, MAX_SIGNATURE);
+      existing.signature = truncate(`${existing.signature}\n${signature}`, MAX_SIGNATURE_LENGTH);
       return;
     }
     if (existing) return;
@@ -86,15 +86,15 @@ export function analyzeSource(code: string, filePath: string): Analysis {
     switch (node.type) {
       case 'FunctionDeclaration':
       case 'TSDeclareFunction':
-        return { type: kindOfCallable(name), signature: truncate(header(node), MAX_SIGNATURE) };
+        return { type: kindOfCallable(name), signature: truncate(header(node), MAX_SIGNATURE_LENGTH) };
       case 'ClassDeclaration':
         return { type: node.abstract ? 'abstract_class' : 'class', signature: classSignature(node) };
       case 'TSInterfaceDeclaration':
-        return { type: 'interface', signature: truncate(slice(node), MAX_SIGNATURE) };
+        return { type: 'interface', signature: truncate(slice(node), MAX_SIGNATURE_LENGTH) };
       case 'TSTypeAliasDeclaration':
-        return { type: 'type', signature: truncate(slice(node), MAX_SIGNATURE) };
+        return { type: 'type', signature: truncate(slice(node), MAX_SIGNATURE_LENGTH) };
       case 'TSEnumDeclaration':
-        return { type: 'enum', signature: truncate(slice(node), MAX_SIGNATURE) };
+        return { type: 'enum', signature: truncate(slice(node), MAX_SIGNATURE_LENGTH) };
       default:
         return { type: 'const', signature: `export default ${node.type}` };
     }
@@ -104,7 +104,7 @@ export function analyzeSource(code: string, filePath: string): Analysis {
     const idText = slice(d.id);
     const init = d.init;
     if (init && (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression')) {
-      return { type: kindOfCallable(name), signature: truncate(`const ${idText} = ${code.slice(init.start, init.body.start).trim()}`, MAX_SIGNATURE) };
+      return { type: kindOfCallable(name), signature: truncate(`const ${idText} = ${code.slice(init.start, init.body.start).trim()}`, MAX_SIGNATURE_LENGTH) };
     }
     let signature = `const ${idText}`;
     if (init?.type === 'CallExpression') signature += ` = ${slice(init.callee)}(…)`;
@@ -129,9 +129,9 @@ export function analyzeSource(code: string, filePath: string): Analysis {
     const members = node.body.body
       .filter((m: AstNode) => !m.accessibility || m.accessibility === 'public')
       .filter((m: AstNode) => m.key && m.key.type !== 'PrivateName')
-      .slice(0, MAX_CLASS_MEMBERS)
+      .slice(0, MAX_CLASS_MEMBERS_TO_SHOW)
       .map((m: AstNode) => `  ${(m.body ? code.slice(m.start, m.body.start) : slice(m)).trim().replace(/;$/, '')}`);
-    return truncate(`${head} {\n${members.join('\n')}\n}`, MAX_SIGNATURE);
+    return truncate(`${head} {\n${members.join('\n')}\n}`, MAX_SIGNATURE_LENGTH);
   };
 
   for (const stmt of body) {
@@ -168,7 +168,7 @@ export function analyzeSource(code: string, filePath: string): Analysis {
         }
         const name = decl.id?.name ?? defaultName(filePath);
         if (decl.type === 'ArrowFunctionExpression' || decl.type === 'FunctionExpression') {
-          add(name, { type: kindOfCallable(name), signature: truncate(`${code.slice(decl.start, decl.body.start).trim()}`, MAX_SIGNATURE) }, stmt);
+          add(name, { type: kindOfCallable(name), signature: truncate(`${code.slice(decl.start, decl.body.start).trim()}`, MAX_SIGNATURE_LENGTH) }, stmt);
         } else if (decl.type === 'CallExpression') {
           add(name, { type: kindOfCallable(name), signature: `${slice(decl.callee)}(…)` }, stmt);
         } else {
@@ -203,7 +203,7 @@ export function cleanJsdoc(comment: Comment): string | null {
   }
   let text = summary.join(' ').replace(/\{@link\s+([^}\s|]+)[^}]*\}/g, '$1').replace(/\s+/g, ' ').trim();
   if (deprecated) text = `[deprecated] ${text}`.trim();
-  return text ? truncate(text, MAX_DESCRIPTION) : null;
+  return text ? truncate(text, MAX_DESCRIPTION_LENGTH) : null;
 }
 
 function defaultName(filePath: string): string {

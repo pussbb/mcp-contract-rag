@@ -1,0 +1,106 @@
+# Full demo configuration for contract-rag
+# This example shows all configuration options with multi-service setup
+# Copy this file to contract-rag.yaml and customize for your needs
+
+# Database connection (use ${VAR:-default} for environment variables)
+database:
+  url: ${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/contract_rag}
+  schema: contract_rag_demo
+  poolSize: 4
+
+# Tier 2: local LLM triage (LM Studio, OpenAI-compatible)
+# Requires a local model server or set enabled: false to skip
+triage:
+  enabled: ${TRIAGE_ENABLED:-true}
+  url: ${LM_STUDIO_URL:-http://localhost:1234/v1}
+  model: ${LM_STUDIO_MODEL:-local-model}
+  timeoutMs: 8000
+  keep: 3
+
+# Search limits
+search:
+  tier1Limit: 12              # rows fetched from PostgreSQL before triage
+  resourceLimit: 50           # rows in codebase://exports/high-priority resource
+
+# Sync optimization
+sync:
+  mtimePrecheck: true         # skip reading files if size and mtime are unchanged
+
+# Ranking: priority_score = folder weight + inboundEdgeWeight per importer (capped)
+ranking:
+  inboundEdgeWeight: 2        # bonus per importing file
+  inboundEdgeCap: 40          # cap on inbound edge bonus
+  folderWeights:              # first matching case-insensitive path fragment wins
+    - { match: /utils/, weight: 50 }
+    - { match: /helpers/, weight: 50 }
+    - { match: /extensions/, weight: 40 }
+    - { match: /hooks/, weight: 40 }
+    - { match: /shared/, weight: 30 }
+    - { match: /lib/, weight: 30 }
+    - { match: /services/, weight: 25 }
+    - { match: /components/, weight: 20 }
+
+# Files and directories to ignore during indexing
+ignore:
+  dirs:
+    - node_modules
+    - fixtures
+    - __pycache__
+    - .venv
+    - venv
+    - site-packages
+    - bin
+    - obj
+    - out
+    - .git
+    - dist
+    - build
+    - coverage
+    - .next
+    - .turbo
+    - .idea
+    - .claude
+  files:                      # regular expressions matched against file name
+    - '\.(d\.ts|test\.[tj]sx?|spec\.[tj]sx?|stories\.[tj]sx?)$'
+    - '^(test_.*|conftest)\.py$'
+    - '_test\.py$'
+    - '\.(g|generated|Designer)\.cs$'
+    - '^(AssemblyInfo|GlobalUsings)\.cs$'
+
+# Language-specific settings (language chosen by file extension)
+languages:
+  typescript:
+    extensions: [.ts, .tsx, .js, .jsx, .mjs]
+  python:
+    extensions: [.py]
+    command: python3
+  csharp:
+    extensions: [.cs]
+    command: dotnet
+    autoBuild: true           # build Roslyn extractor on first use
+
+# Services to index (roots are relative to this YAML file)
+services:
+  # Main TypeScript/JavaScript project
+  - name: frontend
+    root: ./packages/frontend
+    ignoreDirs: [.next, .turbo]
+
+  # Backend API service
+  - name: backend
+    root: ./packages/backend
+    ignoreDirs: [dist, build]
+
+  # Shared utilities
+  - name: shared
+    root: ./packages/shared
+
+  # Python microservice
+  - name: python-service
+    root: ./services/python-api
+    ignoreDirs: [.venv, __pycache__]
+
+  # .NET service
+  - name: dotnet-service
+    root: ./services/dotnet-api
+    ignoreDirs: [bin, obj]

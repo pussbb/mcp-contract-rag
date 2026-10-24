@@ -7,3 +7,6 @@ node_modules/
 src/parser/dotnet/Extractor/bin/
 src/parser/dotnet/Extractor/obj/
 src/parser/dotnet/Extractor/out/
+
+# Local configuration (use demo configs as templates)
+contract-rag.yaml

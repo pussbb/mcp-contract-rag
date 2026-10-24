@@ -1,0 +1,59 @@
+# Demo configuration for contract-rag
+# This is a simplified setup for getting started quickly
+# Copy this file to contract-rag.yaml and customize as needed
+
+database:
+  url: postgres://postgres:postgres@localhost:5432/contract_rag
+  schema: contract_rag_demo
+  poolSize: 4
+
+# Tier 2: local LLM triage (optional - set to false to skip)
+triage:
+  enabled: false
+  url: http://localhost:1234/v1
+  model: local-model
+  timeoutMs: 8000
+  keep: 3
+
+search:
+  tier1Limit: 12
+  resourceLimit: 50
+
+sync:
+  mtimePrecheck: true
+
+# Ranking rules for prioritizing exports
+ranking:
+  inboundEdgeWeight: 2
+  inboundEdgeCap: 40
+  folderWeights:
+    - { match: /utils/, weight: 50 }
+    - { match: /helpers/, weight: 50 }
+    - { match: /hooks/, weight: 40 }
+    - { match: /shared/, weight: 30 }
+    - { match: /components/, weight: 20 }
+
+# Files and directories to ignore during indexing
+ignore:
+  dirs: [node_modules, __pycache__, .venv, venv, bin, obj, out, .git, dist, build, coverage, .next, .turbo, .idea, .claude]
+  files:
+    - '\.(d\.ts|test\.[tj]sx?|spec\.[tj]sx?|stories\.[tj]sx?)$'
+    - '^(test_.*|conftest)\.py$'
+    - '_test\.py$'
+
+# Language-specific settings
+languages:
+  typescript:
+    extensions: [.ts, .tsx, .js, .jsx, .mjs]
+  python:
+    extensions: [.py]
+    command: python3
+  csharp:
+    extensions: [.cs]
+    command: dotnet
+    autoBuild: true
+
+# Services to index (add your project roots here)
+services:
+  - name: my-project
+    root: .

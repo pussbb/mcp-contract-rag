@@ -18,6 +18,7 @@ export function createResolver(root: string, knownFiles: Set<string>): Resolver 
   const cfg = loadConfig(root);
   const matchPath = cfg.resultType === 'success' ? createMatchPath(cfg.absoluteBaseUrl, cfg.paths) : null;
 
+  // Resolves an absolute path to a known file, trying all TypeScript extension variants
   const lookup = (abs: string): string | null => {
     const rel = posix(path.relative(root, abs));
     const stem = rel.replace(/\.(m?js|jsx)$/, '');
@@ -29,6 +30,7 @@ export function createResolver(root: string, knownFiles: Set<string>): Resolver 
     return candidates.find((c) => knownFiles.has(c)) ?? null;
   };
 
+  // TypeScript resolver: handles relative imports and tsconfig path aliases
   const resolveTs: Resolver = (fromRel, specifier) => {
     if (specifier.startsWith('.')) return lookup(path.resolve(root, path.dirname(fromRel), specifier));
     if (!matchPath) return null;
@@ -36,6 +38,7 @@ export function createResolver(root: string, knownFiles: Set<string>): Resolver 
     return matched ? lookup(matched) : null;
   };
 
+  // Python module resolver: finds .py or __init__.py files for dotted module names
   const pyModule = (dir: string, parts: string[]): string | null => {
     for (let n = parts.length; n >= 1; n--) {
       const base = posix(path.join(dir, ...parts.slice(0, n)));
@@ -45,6 +48,7 @@ export function createResolver(root: string, knownFiles: Set<string>): Resolver 
     return null;
   };
 
+  // Python resolver: handles relative imports (.., .) and absolute dotted imports
   const resolvePy: Resolver = (fromRel, specifier) => {
     const level = specifier.length - specifier.replace(/^\.+/, '').length;
     const parts = specifier.slice(level).split('.').filter(Boolean);
@@ -57,6 +61,7 @@ export function createResolver(root: string, knownFiles: Set<string>): Resolver 
     return pyModule('', parts) ?? pyModule('src', parts);
   };
 
+  // Dispatch to language-specific resolver
   return (fromRel, specifier) => {
     switch (languageOf(fromRel)) {
       case 'python': return resolvePy(fromRel, specifier);
@@ -68,7 +73,11 @@ export function createResolver(root: string, knownFiles: Set<string>): Resolver 
 
 const NODE_BUILTINS = new Set(builtinModules);
 
-/** Package name for a specifier that is not a file in the service, or null if it is not a package. */
+/**
+ * Extracts the package name from an import specifier.
+ * Returns null for relative imports, Node builtins, or special prefixes.
+ * For Python, returns the first dotted segment (top-level package).
+ */
 export function externalPackage(specifier: string, language: Language): string | null {
   if (specifier.startsWith('.')) return null;
   if (language === 'csharp') return null;

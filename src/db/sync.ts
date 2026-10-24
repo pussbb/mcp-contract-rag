@@ -122,18 +122,29 @@ export async function replaceExternalDeps(client: pg.PoolClient, service: string
   );
 }
 
+/** Escapes special characters for ILIKE patterns. */
+function escapeLikePattern(s: string): string {
+  return s.replace(/[\\%_]/g, '\\$&');
+}
+
+/** Builds the CASE WHEN clause for folder weight scoring. */
+function buildFolderWeightClause(folderWeights: Array<{ match: string; weight: number }>, params: (string | number)[]): string {
+  const whens = folderWeights.map(({ match, weight }) => {
+    params.push(`%${escapeLikePattern(match)}%`, weight);
+    return `WHEN ('/' || f.file_path) ILIKE $${params.length - 1} THEN $${params.length}::int`;
+  });
+  return `CASE ${whens.join(' ')} ELSE 0 END`;
+}
+
 /** priority = folder weight + inboundEdgeWeight per inbound import edge (capped), all from contract-rag.yaml. */
 export async function recomputePriority(client: pg.PoolClient, service: string): Promise<void> {
   const { folderWeights, inboundEdgeWeight, inboundEdgeCap } = config.ranking;
   const params: (string | number)[] = [service, inboundEdgeWeight, inboundEdgeCap];
-  const escape = (s: string) => s.replace(/[\\%_]/g, '\\$&');
-  const whens = folderWeights.map(({ match, weight }) => {
-    params.push(`%${escape(match)}%`, weight);
-    return `WHEN ('/' || f.file_path) ILIKE $${params.length - 1} THEN $${params.length}::int`;
-  });
+  const folderWeightClause = buildFolderWeightClause(folderWeights, params);
+
   await client.query(
     `UPDATE codebase_exports e
-        SET priority_score = (CASE ${whens.join(' ')} ELSE 0 END) + LEAST(COALESCE(d.n, 0) * $2::int, $3::int)
+        SET priority_score = ${folderWeightClause} + LEAST(COALESCE(d.n, 0) * $2::int, $3::int)
        FROM codebase_files f
        LEFT JOIN (SELECT to_file, count(*)::int AS n FROM codebase_edges WHERE service_name = $1 GROUP BY to_file) d
          ON d.to_file = f.file_path
