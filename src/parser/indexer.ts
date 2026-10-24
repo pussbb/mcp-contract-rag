@@ -116,7 +116,10 @@ async function analyzeAll(rels: string[], textOf: (rel: string) => string, log: 
       try {
         out.set(rel, analyzeSource(textOf(rel), rel));
       } catch (err) {
-        log(`parse failed: ${rel}: ${(err as Error).message}`);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const errorStack = err instanceof Error ? err.stack : undefined;
+        log(`parse failed: ${rel}: ${errorMessage}`);
+        if (errorStack) log(errorStack);
         out.set(rel, EMPTY);
       }
     }
@@ -129,7 +132,10 @@ async function analyzeAll(rels: string[], textOf: (rel: string) => string, log: 
         out.set(rel, r.error ? EMPTY : { exports: r.exports, imports: r.imports });
       }
     } catch (err) {
-      log(`python extractor failed: ${(err as Error).message}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorStack = err instanceof Error ? err.stack : undefined;
+      log(`python extractor failed: ${errorMessage}`);
+      if (errorStack) log(errorStack);
       for (const rel of Object.keys(py)) out.set(rel, EMPTY);
     }
   }
@@ -137,7 +143,10 @@ async function analyzeAll(rels: string[], textOf: (rel: string) => string, log: 
     try {
       for (const [rel, a] of await analyzeDotnet(cs, log)) out.set(rel, a);
     } catch (err) {
-      log(`C# extractor failed: ${(err as Error).message}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorStack = err instanceof Error ? err.stack : undefined;
+      log(`C# extractor failed: ${errorMessage}`);
+      if (errorStack) log(errorStack);
       for (const rel of Object.keys(cs)) out.set(rel, EMPTY);
     }
   }

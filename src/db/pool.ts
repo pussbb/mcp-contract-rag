@@ -35,7 +35,11 @@ export async function ensureSchema(pool: pg.Pool): Promise<void> {
     );
     await client.query('COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Failed to rollback schema transaction:', rollbackErr);
+    }
     throw err;
   } finally {
     client.release();

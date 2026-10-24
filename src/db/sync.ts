@@ -47,7 +47,11 @@ export async function inSyncTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolCl
     await client.query('COMMIT');
     return result;
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Failed to rollback transaction:', rollbackErr);
+    }
     throw err;
   } finally {
     client.release();

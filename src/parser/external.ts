@@ -11,7 +11,19 @@ export type ExtractorResult = Analysis & { error?: string };
  * {path: {exports, imports, ...} | {error}} from stdout. One process handles all files.
  */
 export async function runExtractor(command: string, args: string[], files: Record<string, string>): Promise<Record<string, ExtractorResult>> {
-  const child = exec(command, args, { maxBuffer: 512 * 1024 * 1024 });
-  child.child.stdin!.end(JSON.stringify(files));
-  return JSON.parse((await child).stdout) as Record<string, ExtractorResult>;
+  try {
+    const child = exec(command, args, { maxBuffer: 512 * 1024 * 1024 });
+    child.child.stdin!.end(JSON.stringify(files));
+    const result = await child;
+    return JSON.parse(result.stdout) as Record<string, ExtractorResult>;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    const stderr = err instanceof Error && 'stderr' in err ? (err as any).stderr : undefined;
+    console.error(`Extractor command failed: ${command} ${args.join(' ')}`);
+    console.error(`Error: ${errorMessage}`);
+    if (errorStack) console.error(errorStack);
+    if (stderr) console.error(`Stderr: ${stderr}`);
+    throw new Error(`Extractor failed: ${errorMessage}`);
+  }
 }

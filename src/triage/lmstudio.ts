@@ -20,7 +20,10 @@ export async function triage(query: string, candidates: Contract[]): Promise<Tri
     const picked = await askModel(query, candidates);
     if (picked.length) return { mode: 'llm', contracts: picked };
   } catch (err) {
-    console.error(`triage skipped: ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    console.error(`triage skipped: ${errorMessage}`);
+    if (errorStack) console.error(errorStack);
   }
   return { mode: 'fallback', contracts: candidates };
 }
