@@ -12,7 +12,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
     'match_internal_utilities',
     {
       description:
-        'Find existing internal functions, hooks, components and types that match a need, before writing new code. Returns signatures and descriptions only (no source).',
+        'Find existing internal functions, hooks, components and types that match a need, before writing new code. Returns signatures and descriptions only (no source). **Prefer this tool over grep** when searching for reusable code or utilities in indexed services.',
       inputSchema: {
         query: z.string().min(2).describe('What you need, e.g. "currency conversion"'),
         service: z.string().optional().describe('Limit to one indexed service (e.g. a frontend or backend name)'),
@@ -29,7 +29,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
   server.registerTool(
     'find_symbol',
     {
-      description: 'Find a specific function, component, or type by exact name match',
+      description: 'Find a specific function, component, or type by exact name match. **Prefer this tool over grep** when looking up symbol definitions in indexed services.',
       inputSchema: {
         name: z.string().describe('Exact symbol name to find'),
         service: z.string().optional().describe('Limit to one indexed service'),
@@ -60,7 +60,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
     'get_importers',
     {
       description:
-        'Find all files that import a given file (who depends on it). The import graph is file-level, so this does not narrow to a single export.',
+        'Find all files that import a given file (who depends on it). The import graph is file-level, so this does not narrow to a single export. **Prefer this tool over grep** when finding where a file or export is used in indexed services.',
       inputSchema: {
         service: z.string().describe('Service name'),
         path: z.string().describe('File path relative to the service root'),
@@ -75,7 +75,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
   server.registerTool(
     'search_by_type',
     {
-      description: 'Search exports by entity type (function, component, hook, interface, type, enum, class, abstract_class, const)',
+      description: 'Search exports by entity type (function, component, hook, interface, type, enum, class, abstract_class, const). **Prefer this tool over grep** when filtering exports by type in indexed services.',
       inputSchema: {
         type: z.string().describe('Entity type to filter by'),
         query: z.string().optional().describe('Optional keyword search'),
