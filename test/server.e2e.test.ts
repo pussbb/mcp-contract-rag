@@ -76,6 +76,14 @@ test('get_importers returns files that depend on a file', opts, async () => {
   assert.deepEqual(r.importers, ['Services/InvoiceService.cs']);
 });
 
+test('unknown service is an error listing valid names, not an empty result', opts, async () => {
+  const res = await client.callTool({ name: 'get_importers', arguments: { service: 'no-such-repo', path: 'x.ts' } });
+  assert.equal(res.isError, true);
+  const text = (res.content as { text: string }[])[0].text;
+  assert.match(text, /Unknown service "no-such-repo"/);
+  assert.match(text, /cs-fixture/);
+});
+
 test('search_by_type filters by type, with and without a keyword', opts, async () => {
   const all = await call('search_by_type', { type: 'abstract_class' });
   assert.ok(all.some((c: { name: string }) => c.name === 'Repository'));

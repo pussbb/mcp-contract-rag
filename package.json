@@ -13,7 +13,9 @@
     "db:up": "docker compose up -d postgres",
     "usage": "tsx src/cli.ts usage",
     "contract-rag": "tsx src/cli.ts",
-    "install-hooks": "tsx src/cli.ts install-hooks"
+    "install-hooks": "tsx src/cli.ts install-hooks",
+    "install-skill": "tsx src/cli.ts install-skill",
+    "demo": "tsx scripts/demo.ts"
   },
   "dependencies": {
     "@babel/parser": "^8.0.8",

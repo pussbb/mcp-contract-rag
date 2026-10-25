@@ -113,6 +113,12 @@ export async function getImporters(pool: pg.Pool, service: string, path: string)
   return rows.map((r) => r.from_file as string);
 }
 
+/** Names of every indexed service, alphabetical. */
+export async function listServices(pool: pg.Pool): Promise<string[]> {
+  const { rows } = await pool.query('SELECT DISTINCT service_name FROM codebase_files ORDER BY service_name');
+  return rows.map((r) => r.service_name as string);
+}
+
 /** All exports of one service ranked by priority, streamed. */
 export function streamServiceExports(pool: pg.Pool, service: string, limit: number): AsyncGenerator<Contract> {
   return streamRows<Contract>(

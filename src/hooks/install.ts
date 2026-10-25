@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadConfig } from '../config.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const TSX = path.join(repoRoot, 'node_modules', '.bin', 'tsx');
@@ -74,4 +75,25 @@ export function installHooks({ projectDir, shared = false, uninstall = false }: 
 /** Shell command that registers the MCP server with Claude Code for a project. */
 export function mcpAddCommand(): string {
   return `claude mcp add contract-rag -- ${quote(TSX)} ${quote(CLI)} serve`;
+}
+
+export const SKILL_TEMPLATE = path.join(repoRoot, 'templates', 'skill', 'SKILL.md');
+
+/**
+ * Writes the contract-rag skill into a project's `.claude/skills/contract-rag/`, filling in the
+ * service names from the project's `contract-rag.yaml` (or the folder name when there is none).
+ */
+export function installSkill(projectDir: string): { file: string; changed: boolean } {
+  const cfgFile = path.join(projectDir, 'contract-rag.yaml');
+  const services = loadConfig(cfgFile).services.map((s) => s.name);
+  // Without a config file loadConfig names the single service after process.cwd(); use the project instead.
+  const names = existsSync(cfgFile) ? services : [path.basename(projectDir)];
+  const text = readFileSync(SKILL_TEMPLATE, 'utf8').replace('{{SERVICES}}', names.map((n) => `- \`${n}\``).join('\n'));
+  const file = path.join(projectDir, '.claude', 'skills', 'contract-rag', 'SKILL.md');
+  const changed = !existsSync(file) || readFileSync(file, 'utf8') !== text;
+  if (changed) {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, text);
+  }
+  return { file, changed };
 }

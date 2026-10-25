@@ -47,6 +47,6 @@ Update the docs in the same change when you alter the design.
 
 ## Commands
 
-- `yarn db:up` start Postgres, `yarn index` sync all services from `contract-rag.yaml`, `yarn build:dotnet` build the C# extractor, `yarn start` run the MCP server
-- `yarn contract-rag install-hooks <project-dir>` add the Claude Code hooks to a project (`docs/hooks.md`)
+- `yarn db:up` start Postgres, `yarn index` sync all services from `contract-rag.yaml`, `yarn build:dotnet` build the C# extractor, `yarn start` run the MCP server, `yarn demo` run an end-to-end demo against the test fixtures (needs `yarn db:up`)
+- `yarn install-hooks <project-dir>` add the Claude Code hooks to a project, `yarn install-skill <project-dir>` add the contract-rag skill (`docs/hooks.md`)
 - `yarn typecheck` and `yarn test` must pass before a change is considered done

@@ -9,5 +9,5 @@
     "esModuleInterop": true,
     "types": ["node"]
   },
-  "include": ["src", ".claude/hooks", "test"]
+  "include": ["src", "scripts", ".claude/hooks", "test"]
 }
