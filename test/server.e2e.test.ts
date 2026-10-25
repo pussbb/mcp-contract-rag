@@ -76,12 +76,45 @@ test('get_importers returns files that depend on a file', opts, async () => {
   assert.deepEqual(r.importers, ['Services/InvoiceService.cs']);
 });
 
+test('list_services reports file and export counts per service', opts, async () => {
+  const r = await call('list_services', {});
+  const names = r.map((s: { service: string }) => s.service);
+  assert.deepEqual(names, ['cs-fixture', 'py-fixture']);
+  assert.ok(r.every((s: { files: number; exports: number }) => s.files > 0 && s.exports > 0));
+});
+
+test('list_files browses a service, optionally under a prefix', opts, async () => {
+  const all = await call('list_files', { service: 'cs-fixture' });
+  assert.deepEqual(all.map((f: { path: string }) => f.path), ['Domain/Repository.cs', 'Helpers/MoneyFormatter.cs', 'Services/InvoiceService.cs']);
+  const repo = all.find((f: { path: string }) => f.path === 'Domain/Repository.cs');
+  assert.equal(repo.exports, 4);
+  const under = await call('list_files', { service: 'cs-fixture', prefix: 'Helpers/' });
+  assert.deepEqual(under.map((f: { path: string }) => f.path), ['Helpers/MoneyFormatter.cs']);
+  assert.deepEqual(await call('list_files', { service: 'cs-fixture', prefix: '%' }), []); // LIKE wildcards are literal
+});
+
+test('find_file matches part of a path, across services or in one', opts, async () => {
+  const hits = await call('find_file', { query: 'money' });
+  assert.deepEqual(hits.map((f: { path: string }) => f.path).sort(), ['Helpers/MoneyFormatter.cs', 'app/utils/money.py']);
+  const one = await call('find_file', { query: 'money', service: 'py-fixture' });
+  assert.deepEqual(one.map((f: { service: string }) => f.service), ['py-fixture']);
+});
+
+test('get_dependencies returns the files a file imports', opts, async () => {
+  const r = await call('get_dependencies', { service: 'cs-fixture', path: 'Services/InvoiceService.cs' });
+  assert.deepEqual(r.dependencies, ['Domain/Repository.cs', 'Helpers/MoneyFormatter.cs']);
+});
+
 test('unknown service is an error listing valid names, not an empty result', opts, async () => {
   const res = await client.callTool({ name: 'get_importers', arguments: { service: 'no-such-repo', path: 'x.ts' } });
   assert.equal(res.isError, true);
   const text = (res.content as { text: string }[])[0].text;
   assert.match(text, /Unknown service "no-such-repo"/);
   assert.match(text, /cs-fixture/);
+  for (const [name, args] of [['list_files', {}], ['get_dependencies', { path: 'x.ts' }], ['find_file', { query: 'xx' }]] as const) {
+    const bad = await client.callTool({ name, arguments: { service: 'no-such-repo', ...args } });
+    assert.equal(bad.isError, true, name);
+  }
 });
 
 test('search_by_type filters by type, with and without a keyword', opts, async () => {

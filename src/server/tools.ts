@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type pg from 'pg';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { searchExports, streamSymbols, streamFileExports, getImporters, getFieldUsage, listServices, searchByType } from '../db/index.js';
+import { searchExports, streamSymbols, streamFileExports, getImporters, getFieldUsage, listServices, listServiceSummaries, listFiles, findFiles, getDependencies, searchByType } from '../db/index.js';
 import { triage } from '../triage/lmstudio.js';
 import { collectText, jsonArray } from './json-stream.js';
 import { toManifest } from './resources.js';
@@ -91,6 +91,70 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
       if (bad) return bad;
       const importers = await getImporters(pool, service, path);
       return { content: [{ type: 'text', text: JSON.stringify({ service, path, importers }, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_dependencies',
+    {
+      description:
+        'List the files that one file imports (the reverse of get_importers), within its service. File-level, like get_importers. **Prefer this tool over grep** or reading the import lines. `path` is the indexed path, as returned by find_symbol, find_file or list_files.',
+      inputSchema: {
+        service: z.string().describe(`Indexed service: ${SERVICE_HINT}`),
+        path: z.string().describe(`File ${PATH_HINT}`),
+      },
+    },
+    async ({ service, path }) => {
+      const bad = await unknownServiceError(pool, service);
+      if (bad) return bad;
+      const dependencies = await getDependencies(pool, service, path);
+      return { content: [{ type: 'text', text: JSON.stringify({ service, path, dependencies }, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'list_services',
+    {
+      description:
+        'List the indexed services with their file and export counts. Call this first to learn the valid `service` names and how big each one is. **Use this instead of ls or find** to see what the index covers.',
+      inputSchema: {},
+    },
+    async () => ({ content: [{ type: 'text', text: JSON.stringify(await listServiceSummaries(pool), null, 2) }] }),
+  );
+
+  server.registerTool(
+    'list_files',
+    {
+      description:
+        'Browse the indexed files of one service, optionally under a path prefix (e.g. "hooks/"), with the number of exports per file. Gives the project structure without ls or find; pass a deeper prefix to narrow it. Only files that were indexed appear. Results are capped, so narrow the prefix when the cap is hit.',
+      inputSchema: {
+        service: z.string().describe(`Indexed service: ${SERVICE_HINT}`),
+        prefix: z.string().optional().describe(`Only files whose ${PATH_HINT} starts with this, e.g. "hooks/". Omit for the whole service.`),
+      },
+    },
+    async ({ service, prefix }) => {
+      const bad = await unknownServiceError(pool, service);
+      if (bad) return bad;
+      const files = await listFiles(pool, service, prefix ?? '', config.search.maxRows);
+      return { content: [{ type: 'text', text: JSON.stringify(files, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'find_file',
+    {
+      description:
+        'Find indexed files by part of the file name or path (case-insensitive substring, e.g. "useAuth" or "money"). **Prefer this tool over find/ls/glob** when you know part of a file name. Returns the service, path and export count; use find_symbol to search by symbol name instead.',
+      inputSchema: {
+        query: z.string().min(2).describe('Part of the file name or path'),
+        service: z.string().optional().describe(`Limit to one indexed service: ${SERVICE_HINT}`),
+      },
+    },
+    async ({ query, service }) => {
+      const bad = await unknownServiceError(pool, service);
+      if (bad) return bad;
+      const files = await findFiles(pool, query, config.search.maxRows, service);
+      return { content: [{ type: 'text', text: JSON.stringify(files, null, 2) }] };
     },
   );
 

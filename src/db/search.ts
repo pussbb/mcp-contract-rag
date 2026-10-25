@@ -119,6 +119,73 @@ export async function listServices(pool: pg.Pool): Promise<string[]> {
   return rows.map((r) => r.service_name as string);
 }
 
+export interface ServiceSummary {
+  service: string;
+  files: number;
+  exports: number;
+}
+
+/** Every indexed service with its file and export counts, alphabetical. */
+export async function listServiceSummaries(pool: pg.Pool): Promise<ServiceSummary[]> {
+  const { rows } = await pool.query(
+    `SELECT f.service_name AS service, count(*)::int AS files, coalesce(sum(x.n), 0)::int AS exports
+       FROM codebase_files f
+       LEFT JOIN LATERAL (SELECT count(*) AS n FROM codebase_exports e WHERE e.service_name = f.service_name AND e.file_path = f.file_path) x ON true
+      GROUP BY f.service_name
+      ORDER BY f.service_name`,
+  );
+  return rows;
+}
+
+export interface IndexedFile {
+  service: string;
+  path: string;
+  language: string;
+  exports: number;
+}
+
+const FILE_SELECT = `
+  SELECT f.service_name AS service, f.file_path AS path, f.language,
+         (SELECT count(*)::int FROM codebase_exports e WHERE e.service_name = f.service_name AND e.file_path = f.file_path) AS exports
+    FROM codebase_files f`;
+
+/** Indexed files of one service whose path starts with `prefix` (all files when empty), alphabetical. */
+export async function listFiles(pool: pg.Pool, service: string, prefix: string, limit: number): Promise<IndexedFile[]> {
+  const { rows } = await pool.query(
+    `${FILE_SELECT} WHERE f.service_name = $1 AND f.file_path LIKE $2 ORDER BY f.file_path LIMIT $3`,
+    [service, `${escapeLikePattern(prefix)}%`, limit],
+  );
+  return rows;
+}
+
+/** Indexed files whose path contains `query` (case-insensitive), shortest path first. */
+export async function findFiles(pool: pg.Pool, query: string, limit: number, service?: string): Promise<IndexedFile[]> {
+  const params: (string | number)[] = [`%${escapeLikePattern(query)}%`];
+  let where = 'WHERE f.file_path ILIKE $1';
+  if (service) {
+    params.push(service);
+    where += ` AND f.service_name = $${params.length}`;
+  }
+  params.push(limit);
+  const { rows } = await pool.query(
+    `${FILE_SELECT} ${where} ORDER BY length(f.file_path), f.service_name, f.file_path LIMIT $${params.length}`,
+    params,
+  );
+  return rows;
+}
+
+/** Files that one file imports (the reverse of getImporters), within the same service. */
+export async function getDependencies(pool: pg.Pool, service: string, path: string): Promise<string[]> {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT to_file
+     FROM codebase_edges
+     WHERE service_name = $1 AND from_file = $2
+     ORDER BY to_file`,
+    [service, path],
+  );
+  return rows.map((r) => r.to_file as string);
+}
+
 /** All exports of one service ranked by priority, streamed. */
 export function streamServiceExports(pool: pg.Pool, service: string, limit: number): AsyncGenerator<Contract> {
   return streamRows<Contract>(
