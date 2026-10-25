@@ -6,7 +6,7 @@ This guide shows how to register the contract-rag MCP server with Claude Code us
 
 The stdio transport is the simplest and most common for local development. The server is spawned as a subprocess and communicates over stdin/stdout.
 
-### Example `.mcp.json` entry
+### Example `../_.mcp.json` entry
 
 ```json
 {
@@ -85,7 +85,7 @@ yarn start
 
 The server will listen on `http://localhost:4000/mcp` (or your configured port).
 
-### 2. Example `.mcp.json` entry
+### 2. Example `../_.mcp.json` entry
 
 ```json
 {
@@ -173,7 +173,7 @@ These hooks are written to `.claude/settings.json` (or `.claude/settings.local.j
 
 ### Tools not appearing in Claude Code
 
-- Verify the `.mcp.json` entry is correct
+- Verify the `../_.mcp.json` entry is correct
 - Check that the server is running (for HTTP transport)
 - Look for errors in Claude Code's MCP server logs
 

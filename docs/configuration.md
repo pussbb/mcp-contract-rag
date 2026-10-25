@@ -37,5 +37,5 @@ database:
 ## What stays outside YAML
 
 - **DDL**: `database/schema.sql` is plain SQL and unqualified; the YAML `database.schema` decides which PostgreSQL schema it lands in (through the connection's `search_path`). `codebase_meta` stores a schema version, and the file, which is idempotent, is re-applied when the version in code is newer.
-- **MCP registration**: `.mcp.json` (how Claude Code launches the server) and `.claude/settings.json` (the `PreToolUse` hook) are Claude Code files with their own formats.
+- **MCP registration**: `../_.mcp.json` (how Claude Code launches the server) and `.claude/settings.json` (the `PreToolUse` hook) are Claude Code files with their own formats.
 - **Which tools exist**: tool and resource names are part of the server code.

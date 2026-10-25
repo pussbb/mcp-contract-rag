@@ -72,7 +72,7 @@ All database writes happen in Node, in one transaction per service under an advi
 
 ## Not implemented yet
 
-- **HTTP transport.** The spec wants a persistent server on port 3001. The server currently speaks stdio, launched by `.mcp.json`. Streamable HTTP (one transport per session) is the follow-up if a shared long-running server is needed.
+- **HTTP transport.** The spec wants a persistent server on port 3001. The server currently speaks stdio, launched by `../_.mcp.json`. Streamable HTTP (one transport per session) is the follow-up if a shared long-running server is needed.
 - **Cross-service links.** Edges stay inside one service. Frontend-to-backend API relations are not modelled.
 - **Python details.** Module-level constants, `__all__`, and imports inside functions are ignored. Absolute imports resolve from the service root or `src/`.
 - **.NET depth.** Only top-level types are indexed (no nested types, no extension-method discovery, no `global using`). Type references are matched by simple name, so two same-named types in visible namespaces both get an edge.
