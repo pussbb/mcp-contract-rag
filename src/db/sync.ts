@@ -93,8 +93,12 @@ export async function deleteService(client: pg.PoolClient, service: string): Pro
 
 /** Delete all data from all tables (reset entire database). */
 export async function deleteAll(client: pg.PoolClient): Promise<void> {
+  await client.query('DELETE FROM codebase_tool_usage');
   await client.query('DELETE FROM codebase_files');
   await client.query('DELETE FROM codebase_meta');
+  await client.query('DELETE FROM codebase_exports');
+  await client.query('DELETE FROM codebase_edges');
+  await client.query('DELETE FROM codebase_external_deps');
 }
 
 /** Replaces all exports of `paths` with `rows`. */

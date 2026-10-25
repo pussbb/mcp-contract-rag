@@ -341,7 +341,7 @@ export async function runIndexCli(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
 
   // Handle reset commands
-  if (args['reset-all']) {
+  if (args['reset-all'] !== undefined) {
     const pool = createPool();
     try {
       await ensureSchema(pool);
@@ -351,7 +351,7 @@ export async function runIndexCli(argv: string[]): Promise<void> {
         await client.query('SELECT pg_advisory_xact_lock(7_340_121)');
         await deleteAll(client);
         await client.query('COMMIT');
-        console.error('Database reset: all data deleted');
+        console.info('Database reset: all data deleted');
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
