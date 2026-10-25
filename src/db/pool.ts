@@ -3,7 +3,7 @@ import pg from 'pg';
 import { config } from '../config.js';
 
 /** Bump when database/schema.sql changes; the file is idempotent and re-applied on mismatch. */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 6;
 
 /** All tables live in `database.schema`; unqualified names resolve through search_path. */
 export function createPool(): pg.Pool {

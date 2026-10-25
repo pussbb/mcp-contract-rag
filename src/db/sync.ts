@@ -24,6 +24,8 @@ export interface ExportRecord {
   type: string;
   signature: string;
   description: string | null;
+  /** Exported as `default`; importers record field usage under the name 'default'. */
+  isDefault?: boolean;
 }
 
 export interface EdgeRecord {
@@ -35,6 +37,16 @@ export interface DependencyRecord {
   path: string;
   packageName: string;
   ecosystem: string;
+}
+
+export interface FieldUsageRecord {
+  /** File that reads the field. */
+  importer: string;
+  /** File that exports `entityName`. */
+  path: string;
+  entityName: string;
+  fieldName: string;
+  usageCount: number;
 }
 
 /** Runs `fn` in one transaction under the sync advisory lock; commits on return, rolls back on throw. */
@@ -105,10 +117,10 @@ export async function replaceExports(client: pg.PoolClient, service: string, pat
   }
   if (!rows.length) return;
   await client.query(
-    `INSERT INTO codebase_exports (service_name, file_path, entity_name, entity_type, signature, description)
-     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[])
+    `INSERT INTO codebase_exports (service_name, file_path, entity_name, entity_type, signature, description, is_default)
+     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bool[])
      ON CONFLICT (service_name, file_path, entity_name) DO NOTHING`,
-    [service, rows.map((r) => r.path), rows.map((r) => r.name), rows.map((r) => r.type), rows.map((r) => r.signature), rows.map((r) => r.description)],
+    [service, rows.map((r) => r.path), rows.map((r) => r.name), rows.map((r) => r.type), rows.map((r) => r.signature), rows.map((r) => r.description), rows.map((r) => r.isDefault ?? false)],
   );
 }
 
@@ -138,6 +150,28 @@ export async function replaceExternalDeps(client: pg.PoolClient, service: string
   );
 }
 
+/** Replaces all field usage rows of the importing files `importerPaths` with `rows`. */
+export async function replaceFieldUsage(client: pg.PoolClient, service: string, importerPaths: string[], rows: FieldUsageRecord[]): Promise<void> {
+  if (importerPaths.length) {
+    await client.query('DELETE FROM codebase_field_usage WHERE service_name = $1 AND importer_path = ANY($2)', [service, importerPaths]);
+  }
+  if (!rows.length) return;
+  // One importer can reach the same export through several specifiers; sum them so the insert has no duplicate keys.
+  const merged = new Map<string, FieldUsageRecord>();
+  for (const r of rows) {
+    const key = [r.importer, r.path, r.entityName, r.fieldName].join('\u0000');
+    const prev = merged.get(key);
+    if (prev) prev.usageCount += r.usageCount;
+    else merged.set(key, { ...r });
+  }
+  const list = [...merged.values()];
+  await client.query(
+    `INSERT INTO codebase_field_usage (service_name, importer_path, file_path, entity_name, field_name, usage_count)
+     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::int[])`,
+    [service, list.map((r) => r.importer), list.map((r) => r.path), list.map((r) => r.entityName), list.map((r) => r.fieldName), list.map((r) => r.usageCount)],
+  );
+}
+
 /** Escapes special characters for ILIKE patterns. */
 function escapeLikePattern(s: string): string {
   return s.replace(/[\\%_]/g, '\\$&');
@@ -152,15 +186,24 @@ function buildFolderWeightClause(folderWeights: Array<{ match: string; weight: n
   return `CASE ${whens.join(' ')} ELSE 0 END`;
 }
 
-/** priority = folder weight + inboundEdgeWeight per inbound import edge (capped), all from contract-rag.yaml. */
+/** priority = folder weight + inboundEdgeWeight per inbound import edge (capped) + fieldUsageWeight per field usage (capped), all from contract-rag.yaml. */
 export async function recomputePriority(client: pg.PoolClient, service: string): Promise<void> {
-  const { folderWeights, inboundEdgeWeight, inboundEdgeCap } = config.ranking;
+  const { folderWeights, inboundEdgeWeight, inboundEdgeCap, fieldUsageWeight, fieldUsageCap } = config.ranking;
   const params: (string | number)[] = [service, inboundEdgeWeight, inboundEdgeCap];
   const folderWeightClause = buildFolderWeightClause(folderWeights, params);
 
+  let fieldUsageClause = '';
+  if (fieldUsageWeight > 0) {
+    params.push(fieldUsageWeight, fieldUsageCap);
+    fieldUsageClause = `+ LEAST(COALESCE((SELECT sum(fu.usage_count)::int
+                                            FROM codebase_field_usage fu
+                                           WHERE fu.service_name = $1 AND fu.file_path = e.file_path AND fu.entity_name = CASE WHEN e.is_default THEN 'default' ELSE e.entity_name END), 0)
+                                  * $${params.length - 1}::int, $${params.length}::int)`;
+  }
+
   await client.query(
     `UPDATE codebase_exports e
-        SET priority_score = ${folderWeightClause} + LEAST(COALESCE(d.n, 0) * $2::int, $3::int)
+        SET priority_score = ${folderWeightClause} + LEAST(COALESCE(d.n, 0) * $2::int, $3::int) ${fieldUsageClause}
        FROM codebase_files f
        LEFT JOIN (SELECT to_file, count(*)::int AS n FROM codebase_edges WHERE service_name = $1 GROUP BY to_file) d
          ON d.to_file = f.file_path

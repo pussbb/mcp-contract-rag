@@ -6,8 +6,8 @@ import type pg from 'pg';
 import { config, languageOf, SOURCE_EXTENSIONS, type Language, type ServiceConfig } from '../config.js';
 import {
   createPool, deleteFiles, deleteService, deleteAll, ensureSchema, inSyncTransaction, loadStoredFiles, recomputePriority,
-  replaceEdges, replaceExports, replaceExternalDeps, upsertFiles,
-  type DependencyRecord, type EdgeRecord, type ExportRecord, type FileRecord, type StoredFile,
+  replaceEdges, replaceExports, replaceExternalDeps, replaceFieldUsage, upsertFiles,
+  type DependencyRecord, type EdgeRecord, type ExportRecord, type FieldUsageRecord, type FileRecord, type StoredFile,
 } from '../db/index.js';
 import { analyzeDotnet, packageForNamespace, resolveDotnetEdges } from './dotnet.js';
 import { runExtractor } from './external.js';
@@ -71,7 +71,7 @@ async function readPackageReferences(root: string, extraIgnoreDirs: string[]): P
 }
 
 const md5 = (text: string) => createHash('md5').update(text).digest('hex');
-const EMPTY: Analysis = { exports: [], imports: [] };
+const EMPTY: Analysis = { exports: [], imports: [], fieldUsage: [] };
 
 /** Collects file metadata (text, hash, size, mtime) for all files, using mtime precheck when enabled. */
 async function collectFileMetadata(
@@ -129,7 +129,7 @@ async function analyzeAll(rels: string[], textOf: (rel: string) => string, log: 
       const parsed = await runExtractor(config.languages.python.command, [PY_EXTRACTOR], py);
       for (const [rel, r] of Object.entries(parsed)) {
         if (r.error) log(`parse failed: ${rel}: ${r.error}`);
-        out.set(rel, r.error ? EMPTY : { exports: r.exports, imports: r.imports });
+        out.set(rel, r.error ? EMPTY : { exports: r.exports, imports: r.imports, fieldUsage: [] });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -284,7 +284,19 @@ export async function syncService(service: ServiceConfig, { pool, log = () => {}
       for (const rel of edgeSources) {
         const analysis = analyses.get(rel) ?? EMPTY;
         if (changedSet.has(rel)) {
-          for (const e of analysis.exports) exportRows.push({ path: rel, name: e.name, type: e.type, signature: e.signature, description: e.description });
+          for (const e of analysis.exports) exportRows.push({ path: rel, name: e.name, type: e.type, signature: e.signature, description: e.description, isDefault: e.name === analysis.defaultExport });
+        }
+      }
+
+      // Field usage: which fields each file reads off values imported from another indexed file
+      const fieldUsageRows: FieldUsageRecord[] = [];
+      for (const rel of edgeSources) {
+        for (const fu of analyses.get(rel)?.fieldUsage ?? []) {
+          const exporter = resolve(rel, fu.source);
+          if (!exporter || exporter === rel) continue;
+          for (const { name: fieldName, count } of fu.fields) {
+            fieldUsageRows.push({ importer: rel, path: exporter, entityName: fu.entityName, fieldName, usageCount: count });
+          }
         }
       }
 
@@ -304,6 +316,7 @@ export async function syncService(service: ServiceConfig, { pool, log = () => {}
       await replaceExports(client, name, changed, exportRows);
       await replaceEdges(client, name, edgeSources, edges);
       await replaceExternalDeps(client, name, edgeSources, deps);
+      await replaceFieldUsage(client, name, edgeSources, fieldUsageRows);
 
       // Recompute priority scores based on folder weights and inbound edges
       await recomputePriority(client, name);

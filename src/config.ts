@@ -85,6 +85,10 @@ const schema = z.object({
       { match: '/services/', weight: 25 },
       { match: '/components/', weight: 20 },
     ]),
+    /** Weight per field usage (destructured or member access). Default 0 to disable field-level ranking. */
+    fieldUsageWeight: int.default(0),
+    /** Cap on field usage bonus to prevent skewing. */
+    fieldUsageCap: int.default(100),
   }).prefault({}),
   ignore: z.object({
     dirs: z.array(z.string()).default([

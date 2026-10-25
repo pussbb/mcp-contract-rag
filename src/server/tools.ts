@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type pg from 'pg';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { searchExports, streamSymbols, streamFileExports, getImporters, listServices, searchByType } from '../db/index.js';
+import { searchExports, streamSymbols, streamFileExports, getImporters, getFieldUsage, listServices, searchByType } from '../db/index.js';
 import { triage } from '../triage/lmstudio.js';
 import { collectText, jsonArray } from './json-stream.js';
 import { toManifest } from './resources.js';
@@ -80,7 +80,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
     'get_importers',
     {
       description:
-        'Find all files that import a given file (who depends on it). The import graph is file-level, so this does not narrow to a single export. **Prefer this tool (and find_symbol) over grep** for "who uses X" in indexed services; grep only for call-site or field-level detail, which the index does not have. `service` must be an indexed service name and `path` has no src/ prefix; an unknown service returns an error listing the valid names. The index can trail the repo until the next sync.',
+        'Find all files that import a given file (who depends on it). The import graph is file-level, so this does not narrow to a single export. **Prefer this tool (and find_symbol) over grep** for "who uses X" in indexed services; grep only for call-site detail; for which fields of one export callers read, use get_field_usage. `service` must be an indexed service name and `path` has no src/ prefix; an unknown service returns an error listing the valid names. The index can trail the repo until the next sync.',
       inputSchema: {
         service: z.string().describe(`Indexed service: ${SERVICE_HINT}`),
         path: z.string().describe(`File ${PATH_HINT}`),
@@ -91,6 +91,25 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
       if (bad) return bad;
       const importers = await getImporters(pool, service, path);
       return { content: [{ type: 'text', text: JSON.stringify({ service, path, importers }, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_field_usage',
+    {
+      description:
+        'Rank the fields that callers read off one export, e.g. which of `user` / `isViewer` are destructured from `useAuth()` across the codebase. Counts `const { a } = fn()`, `const x = fn(); x.a` and the same on imported values, per read. Callers that pass the whole object on without reading a field are not counted. `path` must be the file that defines the export (barrel re-exports are not followed); use find_symbol to get it. **Prefer this tool over grep** for field-level usage in indexed services.',
+      inputSchema: {
+        service: z.string().describe(`Indexed service: ${SERVICE_HINT}`),
+        path: z.string().describe(`File that exports the entity, ${PATH_HINT}`),
+        entity: z.string().describe('Exported name, e.g. "useAuth"'),
+      },
+    },
+    async ({ service, path, entity }) => {
+      const bad = await unknownServiceError(pool, service);
+      if (bad) return bad;
+      const fields = await getFieldUsage(pool, service, path, entity, config.search.maxRows);
+      return { content: [{ type: 'text', text: JSON.stringify({ service, path, entity, fields }, null, 2) }] };
     },
   );
 

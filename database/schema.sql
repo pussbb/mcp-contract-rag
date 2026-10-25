@@ -76,8 +76,39 @@ CREATE INDEX IF NOT EXISTS idx_external_deps_pkg ON codebase_external_deps (pack
 -- Columns added after the first release; no-ops on a fresh database.
 ALTER TABLE codebase_files ADD COLUMN IF NOT EXISTS size_bytes BIGINT;
 ALTER TABLE codebase_files ADD COLUMN IF NOT EXISTS mtime_ms BIGINT;
+ALTER TABLE codebase_exports ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS codebase_meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Field-level usage: how often `importer_path` reads `field_name` off the value of `entity_name`
+-- exported by `file_path`. One row per importer, so re-indexing a file replaces only its own rows.
+-- The first draft of this table had no importer_path and was never populated; drop it once.
+DO $$
+BEGIN
+    IF to_regclass('codebase_field_usage') IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'codebase_field_usage' AND column_name = 'importer_path'
+    ) THEN
+        DROP TABLE codebase_field_usage;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS codebase_field_usage (
+    id            SERIAL PRIMARY KEY,
+    service_name  TEXT NOT NULL,
+    importer_path TEXT NOT NULL,
+    file_path     TEXT NOT NULL,
+    entity_name   TEXT NOT NULL,
+    field_name    TEXT NOT NULL,
+    usage_count   INT NOT NULL DEFAULT 1,
+    CONSTRAINT unique_field_usage UNIQUE (service_name, importer_path, file_path, entity_name, field_name),
+    CONSTRAINT fk_field_usage_importer FOREIGN KEY (service_name, importer_path)
+        REFERENCES codebase_files (service_name, file_path) ON DELETE CASCADE,
+    CONSTRAINT fk_field_usage_file FOREIGN KEY (service_name, file_path)
+        REFERENCES codebase_files (service_name, file_path) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_field_usage_entity ON codebase_field_usage (service_name, file_path, entity_name, field_name);

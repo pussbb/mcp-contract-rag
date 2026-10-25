@@ -44,3 +44,27 @@ test('abstract classes keep inheritance and abstract members', () => {
   assert.match(cls!.signature, /abstract find\(id: string\): Promise<Item>/);
   assert.doesNotMatch(cls!.signature, /secret/);
 });
+
+test('field usage: counts fields read off imported hook results', () => {
+  const code = `
+import { useAuth } from '../hooks/useAuth';
+import other, { helper as h } from './other';
+export const A = () => {
+  const { user, isViewer: v } = useAuth();
+  const auth = useAuth();
+  const again = auth.user;
+  const x = auth?.isCompanyAdmin;
+  const { isViewer } = auth;
+  const r = other();
+  return r.value + h().n;
+};`;
+  const { fieldUsage } = analyzeSource(code, 'src/a.tsx');
+  const auth = fieldUsage!.find((f) => f.entityName === 'useAuth')!;
+  assert.equal(auth.source, '../hooks/useAuth');
+  assert.deepEqual(
+    Object.fromEntries(auth.fields.map((f) => [f.name, f.count])),
+    { user: 2, isViewer: 2, isCompanyAdmin: 1 },
+  );
+  const def = fieldUsage!.find((f) => f.entityName === 'default')!;
+  assert.deepEqual(def.fields, [{ name: 'value', count: 1 }]);
+});

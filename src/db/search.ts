@@ -181,3 +181,25 @@ export function streamEdges(pool: pg.Pool, limit: number, service?: string): Asy
     params,
   );
 }
+
+export interface FieldUsageRow {
+  field: string;
+  reads: number;
+  files: number;
+}
+
+/** Fields read off the value of one export, most-read first. Files that never destructure or index the result are not counted. */
+export async function getFieldUsage(pool: pg.Pool, service: string, path: string, entity: string, limit = 50): Promise<FieldUsageRow[]> {
+  const { rows } = await pool.query(
+    `SELECT field_name, sum(usage_count)::int AS reads, count(*)::int AS files
+     FROM codebase_field_usage
+     WHERE service_name = $1 AND file_path = $2
+       AND entity_name = CASE WHEN EXISTS (SELECT 1 FROM codebase_exports e WHERE e.service_name = $1 AND e.file_path = $2 AND e.entity_name = $3 AND e.is_default)
+                              THEN 'default' ELSE $3 END
+     GROUP BY field_name
+     ORDER BY reads DESC, field_name
+     LIMIT $4`,
+    [service, path, entity, limit],
+  );
+  return rows.map((r) => ({ field: r.field_name as string, reads: r.reads as number, files: r.files as number }));
+}

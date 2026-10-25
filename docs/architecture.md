@@ -35,6 +35,7 @@ See [`database/schema.sql`](../database/schema.sql).
 | `codebase_exports` | Exported entities: `entity_name`, `entity_type` (component, hook, function, interface), `signature`, cleaned JSDoc `description`, `priority_score` (weight by folder). Unique per `(service_name, file_path, entity_name)`. |
 | `codebase_edges` | Import graph inside a service: `from_file` (consumer) to `to_file` (provider). |
 | `codebase_external_deps` | Third-party packages (`npm` / `pypi`) imported per file. |
+| `codebase_field_usage` | Per `(service_name, importer_path, file_path, entity_name, field_name)` a `usage_count`: how often the importer reads a field off the value of an imported export (`const { isViewer } = useAuth()`, `const a = useAuth(); a.user`). `file_path` is the file the import specifier resolves to, so a barrel re-export is not followed. Default exports are stored under `entity_name = 'default'` and matched through `codebase_exports.is_default`. Rows go with their importer on re-index (FK cascade). Feeds the `get_field_usage` tool and `ranking.fieldUsageWeight`. Scopes are ignored, and callers that pass the whole object on are not counted. |
 
 Indexes: trigram GIN on `entity_name` for case-insensitive keyword lookup, `priority_score DESC`, and `(to_file, from_file)` on edges.
 
@@ -74,7 +75,7 @@ Resolved:
 
 - Hook cost: size+mtime pre-check skips reading unchanged files (`sync.mtimePrecheck`). A file watcher would remove the remaining stat walk.
 - Triage output is validated; the model returns indexes only and any failure falls back to the Tier 1 rows.
-- `priority_score` = folder weight + per-importer bonus (capped), both set in YAML (`ranking:`).
+- `priority_score` = folder weight + per-importer bonus (capped) + optional field-usage bonus (capped, off by default), all set in YAML (`ranking:`). The field-usage bonus is a correlated subquery in `recomputePriority`: Postgres rejects a `FROM`-clause join that references the `UPDATE` target, and that error rolls back the whole sync transaction, leaving the index empty.
 
 Still open: HTTP transport, cross-service edges, nested C# types. See [`polyglot-spec.md`](./polyglot-spec.md).
 

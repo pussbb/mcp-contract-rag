@@ -28,6 +28,7 @@ database:
 | `sync.mtimePrecheck` | `true` | skip reading files whose size and mtime match the stored values |
 | `ranking.folderWeights` | utils/helpers 50, extensions/hooks 40, ... | `priority_score` bonus by case-insensitive path fragment, first match wins |
 | `ranking.inboundEdgeWeight` / `inboundEdgeCap` | `2` / `40` | bonus per importing file, and its cap |
+| `ranking.fieldUsageWeight` / `fieldUsageCap` | `0` / `100` | bonus per recorded field usage of an export (from `codebase_field_usage`), and its cap. `0` disables it |
 | `ignore.dirs` / `ignore.files` | build output, VCS, venvs, tests, generated code | directory names and file-name regexes to skip |
 | `languages.<lang>.extensions` | ts/tsx/js/jsx/mjs, py, cs | language is chosen per file by extension |
 | `languages.python.command` | `python3` | interpreter for the Python extractor |

@@ -22,6 +22,19 @@ export interface Analysis {
   imports: string[];
   /** C# only: identifiers used in the file, for type-reference edges. */
   references?: string[];
+  /** Field-level usage: which local variables hold imported entities and which fields are accessed. */
+  fieldUsage?: FieldUsage[];
+  /** Name of the entity exported as `default`, if any. */
+  defaultExport?: string;
+}
+
+export interface FieldUsage {
+  /** Module specifier the entity is imported from, as written (e.g. '../hooks/useAuth'). */
+  source: string;
+  /** The exported name in that module (e.g. 'useAuth'); 'default' for a default import. */
+  entityName: string;
+  /** Fields read from the entity's result, with the number of reads in this file. */
+  fields: Array<{ name: string; count: number }>;
 }
 
 interface Described {
@@ -55,6 +68,9 @@ export function analyzeSource(code: string, filePath: string): Analysis {
 
   const locals = new Map<string, LocalEntry>();
   const imports: string[] = [];
+  // local name -> where it was imported from, for field usage analysis
+  const importBindings = new Map<string, ImportBinding>();
+  let defaultExport: string | undefined;
   for (const stmt of body) {
     const decl = stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration'
       ? stmt.declaration : stmt;
@@ -137,6 +153,16 @@ export function analyzeSource(code: string, filePath: string): Analysis {
   for (const stmt of body) {
     switch (stmt.type) {
       case 'ImportDeclaration':
+        imports.push(stmt.source.value);
+        // Track import bindings for field usage analysis
+        for (const spec of stmt.specifiers) {
+          if (spec.type === 'ImportSpecifier') {
+            importBindings.set(spec.local.name, { source: stmt.source.value, imported: spec.imported.name ?? spec.imported.value });
+          } else if (spec.type === 'ImportDefaultSpecifier') {
+            importBindings.set(spec.local.name, { source: stmt.source.value, imported: 'default' });
+          }
+        }
+        break;
       case 'ExportAllDeclaration':
         imports.push(stmt.source.value);
         break;
@@ -161,6 +187,7 @@ export function analyzeSource(code: string, filePath: string): Analysis {
       }
       case 'ExportDefaultDeclaration': {
         const decl = stmt.declaration;
+        defaultExport = decl.type === 'Identifier' ? decl.name : decl.id?.name ?? defaultName(filePath);
         if (decl.type === 'Identifier') {
           const entry = locals.get(decl.name);
           if (entry) add(decl.name, describeEntry(entry, decl.name), entry.node);
@@ -180,7 +207,10 @@ export function analyzeSource(code: string, filePath: string): Analysis {
     }
   }
 
-  return { exports: [...found.values()], imports };
+  // Analyze field usage patterns
+  const fieldUsage = analyzeFieldUsage(body, importBindings);
+
+  return { exports: [...found.values()], imports, fieldUsage, defaultExport };
 
   function jsdoc(host: AstNode | undefined): string | null {
     const comments = host?.leadingComments ?? [];
@@ -213,4 +243,84 @@ function defaultName(filePath: string): string {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+interface ImportBinding {
+  source: string;
+  imported: string;
+}
+
+/**
+ * Counts the fields read from imported values. Recognized shapes, for an imported `useAuth`:
+ * `const { user, isViewer: v } = useAuth()`, `const auth = useAuth(); auth.user / auth?.user`,
+ * `const { user } = auth`, and the same destructuring/member access on an imported value directly.
+ * Scopes are ignored, so a shadowing local with the same name is counted too.
+ */
+function analyzeFieldUsage(body: AstNode[], importBindings: Map<string, ImportBinding>): FieldUsage[] {
+  const aliases = new Map<string, ImportBinding>(); // local variable -> the import it holds the result of
+  const counts = new Map<string, { binding: ImportBinding; fields: Map<string, number> }>();
+
+  const bindingOf = (expr: AstNode | null | undefined): ImportBinding | undefined => {
+    if (!expr) return undefined;
+    if (expr.type === 'AwaitExpression' || expr.type === 'TSNonNullExpression' || expr.type === 'TSAsExpression') return bindingOf(expr.argument ?? expr.expression);
+    if (expr.type === 'CallExpression' && expr.callee.type === 'Identifier') return importBindings.get(expr.callee.name);
+    if (expr.type === 'Identifier') return aliases.get(expr.name) ?? importBindings.get(expr.name);
+    return undefined;
+  };
+
+  const record = (binding: ImportBinding, field: string): void => {
+    const key = `${binding.source}\u0000${binding.imported}`;
+    let entry = counts.get(key);
+    if (!entry) counts.set(key, (entry = { binding, fields: new Map() }));
+    entry.fields.set(field, (entry.fields.get(field) ?? 0) + 1);
+  };
+
+  const walk = (node: AstNode | null | undefined, visit: (n: AstNode) => void): void => {
+    if (!node || typeof node.type !== 'string') return;
+    visit(node);
+    for (const key of Object.keys(node)) {
+      if (key === 'leadingComments' || key === 'trailingComments' || key === 'innerComments') continue;
+      const child = node[key];
+      if (Array.isArray(child)) for (const c of child) walk(c, visit);
+      else if (child && typeof child === 'object') walk(child, visit);
+    }
+  };
+
+  // Pass 1: `const x = useAuth()` / `const x = other` aliases. Repeat so an alias of an alias resolves.
+  for (let round = 0; round < 2; round++) {
+    for (const stmt of body) {
+      walk(stmt, (n) => {
+        if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier') {
+          const binding = bindingOf(n.init);
+          if (binding) aliases.set(n.id.name, binding);
+        }
+      });
+    }
+  }
+
+  // Pass 2: destructuring and member access.
+  for (const stmt of body) {
+    walk(stmt, (n) => {
+      if (n.type === 'VariableDeclarator' && n.id.type === 'ObjectPattern') {
+        const binding = bindingOf(n.init);
+        if (!binding) return;
+        for (const prop of n.id.properties) {
+          if (prop.type !== 'ObjectProperty') continue;
+          if (prop.key.type === 'Identifier' && !prop.computed) record(binding, prop.key.name);
+          else if (prop.key.type === 'StringLiteral') record(binding, prop.key.value);
+        }
+      } else if ((n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression') && n.object.type === 'Identifier') {
+        const binding = aliases.get(n.object.name);
+        if (!binding) return;
+        if (!n.computed && n.property.type === 'Identifier') record(binding, n.property.name);
+        else if (n.computed && n.property.type === 'StringLiteral') record(binding, n.property.value);
+      }
+    });
+  }
+
+  return [...counts.values()].map(({ binding, fields }) => ({
+    source: binding.source,
+    entityName: binding.imported,
+    fields: [...fields].map(([name, count]) => ({ name, count })),
+  }));
 }
