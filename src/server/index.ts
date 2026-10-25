@@ -1,5 +1,9 @@
+import type { Request, Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import { config } from '../config.js';
 import { createPool, ensureSchema } from '../db/index.js';
 import { registerResources } from './resources.js';
 import { registerTools } from './tools.js';
@@ -8,8 +12,28 @@ import { registerTools } from './tools.js';
 const pool = createPool();
 await ensureSchema(pool);
 
-const server = new McpServer({ name: 'contract-rag', version: '0.1.0' });
+const server = new McpServer({ name: config.server.name, version: '0.1.0' });
 registerTools(server, pool);
 registerResources(server, pool);
-await server.connect(new StdioServerTransport());
-console.error('contract-rag MCP server ready');
+
+if (config.server.transport === 'http') {
+  // HTTP/Streamable transport
+  const app = createMcpExpressApp();
+  app.post('/mcp', async (req: Request, res: Response) => {
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+    res.on('close', () => {
+      transport.close();
+      server.close();
+    });
+  });
+
+  app.listen(config.server.port, () => {
+    console.error(`${config.server.name} MCP server ready on HTTP port ${config.server.port}`);
+  });
+} else {
+  // stdio transport (default)
+  await server.connect(new StdioServerTransport());
+  console.error(`${config.server.name} MCP server ready on stdio`);
+}

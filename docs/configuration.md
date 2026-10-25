@@ -13,6 +13,9 @@ database:
 
 | Key | Default | Meaning |
 |---|---|---|
+| `server.name` | `contract-rag` | MCP server name reported to clients |
+| `server.transport` | `stdio` | Transport: `stdio` (default) or `http` |
+| `server.port` | `3000` | Port for HTTP transport (only used when transport is `http`) |
 | `database.url` | local docker Postgres | connection string |
 | `database.schema` | `contract_rag` | PostgreSQL schema holding all tables. Created on first use; must be a plain identifier. Use a different schema per environment or project to share one database |
 | `database.poolSize` | `4` | pg pool size |

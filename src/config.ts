@@ -13,6 +13,14 @@ const identifier = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'must be a plain
 const extensions = (defaults: string[]) => z.array(z.string()).default(defaults);
 
 const schema = z.object({
+  server: z.object({
+    /** MCP server name reported to clients. */
+    name: z.string().default('contract-rag'),
+    /** Transport: 'stdio' (default) or 'http'. */
+    transport: z.enum(['stdio', 'http']).default('stdio'),
+    /** Port for HTTP transport (only used when transport is 'http'). */
+    port: int.default(3000),
+  }).prefault({}),
   database: z.object({
     url: z.string().default('postgres://postgres:postgres@localhost:5432/contract_rag'),
     /** PostgreSQL schema (namespace) that holds the tables. Created on first use. */
