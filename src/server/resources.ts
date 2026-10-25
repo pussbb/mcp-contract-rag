@@ -27,8 +27,15 @@ export function registerResources(server: McpServer, pool: pg.Pool): void {
       mimeType: 'application/json',
     },
     async (uri) => {
-      const text = await collectText(jsonArray(streamTopExports(pool, config.search.resourceLimit), toManifest));
-      return { contents: [{ uri: uri.href, mimeType: 'application/json', text }] };
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: await collectText(jsonArray(streamTopExports(pool, config.search.resourceLimit), toManifest)),
+          },
+        ],
+      };
     },
   );
 
@@ -43,15 +50,29 @@ export function registerResources(server: McpServer, pool: pg.Pool): void {
     async (uri, { name }) => {
       const service = Array.isArray(name) ? name[0] : name;
       if (!service) throw new Error('Service name is required');
-      const text = await collectText(jsonArray(streamServiceExports(pool, decodeURIComponent(service), config.search.resourceLimit), toManifest));
-      return { contents: [{ uri: uri.href, mimeType: 'application/json', text }] };
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: await collectText(jsonArray(streamServiceExports(pool, decodeURIComponent(service), config.search.resourceLimit), toManifest)),
+          },
+        ],
+      };
     },
   );
 
   const readAllExports = async (uri: URL, offset: number, limit: number) => {
     const size = Math.min(config.search.maxRows, Math.max(1, limit));
-    const text = await collectText(jsonArray(streamAllExports(pool, Math.max(0, offset), size), toManifest));
-    return { contents: [{ uri: uri.href, mimeType: 'application/json', text }] };
+    return {
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: await collectText(jsonArray(streamAllExports(pool, Math.max(0, offset), size), toManifest)),
+        },
+      ],
+    };
   };
 
   server.registerResource(
@@ -88,8 +109,15 @@ export function registerResources(server: McpServer, pool: pg.Pool): void {
       mimeType: 'application/json',
     },
     async (uri) => {
-      const text = await collectText(jsonArray(streamEdges(pool, config.search.graphLimit)));
-      return { contents: [{ uri: uri.href, mimeType: 'application/json', text }] };
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: await collectText(jsonArray(streamEdges(pool, config.search.graphLimit))),
+          },
+        ],
+      };
     },
   );
 
@@ -104,8 +132,15 @@ export function registerResources(server: McpServer, pool: pg.Pool): void {
     async (uri, { name }) => {
       const service = Array.isArray(name) ? name[0] : name;
       if (!service) throw new Error('Service name is required');
-      const text = await collectText(jsonArray(streamEdges(pool, config.search.graphLimit, decodeURIComponent(service))));
-      return { contents: [{ uri: uri.href, mimeType: 'application/json', text }] };
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: await collectText(jsonArray(streamEdges(pool, config.search.graphLimit, decodeURIComponent(service)))),
+          },
+        ],
+      };
     },
   );
 }

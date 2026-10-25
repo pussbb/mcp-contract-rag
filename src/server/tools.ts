@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type pg from 'pg';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { searchExports, streamSymbols, streamFileExports, getImporters, getFieldUsage, listServices, listServiceSummaries, listFiles, findFiles, getDependencies, searchByType } from '../db/index.js';
+import { searchExports, streamSymbols, streamFileExports, getImporters, getFieldUsage, findFieldOwners, getFieldReaders, listServices, listServiceSummaries, listFiles, findFiles, getDependencies, searchByType } from '../db/index.js';
 import { triage } from '../triage/lmstudio.js';
 import { collectText, jsonArray } from './json-stream.js';
 import { toManifest } from './resources.js';
@@ -45,7 +45,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
   server.registerTool(
     'find_symbol',
     {
-      description: 'Find a specific function, component, or type by exact name match. **Prefer this tool over grep** when looking up symbol definitions in indexed services. Needs only the symbol name; `usedBy` is the importer-file count. Grep only for call-site or field-level detail.',
+      description: 'Find a specific function, component, or type by exact name match. **Prefer this tool over grep** when looking up symbol definitions in indexed services. Needs only the symbol name; `usedBy` is the importer-file count. If the name is not an export but a property callers read off one (e.g. a field returned by a hook), the result lists the exports that expose it as `fieldOwners`. Grep only for call-site detail.',
       inputSchema: {
         name: z.string().describe('Exact symbol name to find'),
         service: z.string().optional().describe(`Limit to one indexed service: ${SERVICE_HINT}`),
@@ -55,7 +55,12 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
       const bad = await unknownServiceError(pool, service);
       if (bad) return bad;
       const text = await collectText(jsonArray(streamSymbols(pool, name, config.search.maxRows, service), toManifest));
-      return { content: [{ type: 'text', text }] };
+      if (text.trim() !== '[]') return { content: [{ type: 'text', text }] };
+      // Not an export: it may be a property that callers read off an export (e.g. `isAdmin` from `useAuth()`).
+      const fieldOwners = await findFieldOwners(pool, name, service, config.search.maxRows);
+      if (!fieldOwners.length) return { content: [{ type: 'text', text }] };
+      const hint = 'No export has this name, but callers read it as a field of these exports. Call get_field_usage with {service, path, entity, field} to list the files that read it.';
+      return { content: [{ type: 'text', text: JSON.stringify({ symbols: [], fieldOwners, hint }, null, 2) }] };
     },
   );
 
@@ -71,8 +76,9 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
     async ({ service, path }) => {
       const bad = await unknownServiceError(pool, service);
       if (bad) return bad;
-      const text = await collectText(jsonArray(streamFileExports(pool, service, path, config.search.maxRows), toManifest));
-      return { content: [{ type: 'text', text }] };
+      return {
+        content: [{ type: 'text', text: await collectText(jsonArray(streamFileExports(pool, service, path, config.search.maxRows), toManifest)) }],
+      };
     },
   );
 
@@ -167,11 +173,16 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
         service: z.string().describe(`Indexed service: ${SERVICE_HINT}`),
         path: z.string().describe(`File that exports the entity, ${PATH_HINT}`),
         entity: z.string().describe('Exported name, e.g. "useAuth"'),
+        field: z.string().optional().describe('Optional field name; when set, lists the files that read that field instead of ranking all fields'),
       },
     },
-    async ({ service, path, entity }) => {
+    async ({ service, path, entity, field }) => {
       const bad = await unknownServiceError(pool, service);
       if (bad) return bad;
+      if (field) {
+        const readers = await getFieldReaders(pool, service, path, entity, field, config.search.maxRows);
+        return { content: [{ type: 'text', text: JSON.stringify({ service, path, entity, field, readers }, null, 2) }] };
+      }
       const fields = await getFieldUsage(pool, service, path, entity, config.search.maxRows);
       return { content: [{ type: 'text', text: JSON.stringify({ service, path, entity, fields }, null, 2) }] };
     },

@@ -270,3 +270,46 @@ export async function getFieldUsage(pool: pg.Pool, service: string, path: string
   );
   return rows.map((r) => ({ field: r.field_name as string, reads: r.reads as number, files: r.files as number }));
 }
+
+export interface FieldOwnerRow {
+  service: string;
+  path: string;
+  entity: string;
+  reads: number;
+  files: number;
+}
+
+/** Exports whose callers read a field called `field`, most-read first. Answers "where is this property used" when the name is not an export. */
+export async function findFieldOwners(pool: pg.Pool, field: string, service?: string, limit = 50): Promise<FieldOwnerRow[]> {
+  const { rows } = await pool.query(
+    `SELECT service_name, file_path, entity_name, sum(usage_count)::int AS reads, count(*)::int AS files
+     FROM codebase_field_usage
+     WHERE field_name = $1 AND ($2::text IS NULL OR service_name = $2)
+     GROUP BY service_name, file_path, entity_name
+     ORDER BY reads DESC, service_name, file_path, entity_name
+     LIMIT $3`,
+    [field, service ?? null, limit],
+  );
+  return rows.map((r) => ({
+    service: r.service_name as string,
+    path: r.file_path as string,
+    entity: r.entity_name as string,
+    reads: r.reads as number,
+    files: r.files as number,
+  }));
+}
+
+/** Files that read `field` off one export, most-read first. */
+export async function getFieldReaders(pool: pg.Pool, service: string, path: string, entity: string, field: string, limit = 50): Promise<{ path: string; reads: number }[]> {
+  const { rows } = await pool.query(
+    `SELECT importer_path, usage_count AS reads
+     FROM codebase_field_usage
+     WHERE service_name = $1 AND file_path = $2 AND field_name = $4
+       AND entity_name = CASE WHEN EXISTS (SELECT 1 FROM codebase_exports e WHERE e.service_name = $1 AND e.file_path = $2 AND e.entity_name = $3 AND e.is_default)
+                              THEN 'default' ELSE $3 END
+     ORDER BY usage_count DESC, importer_path
+     LIMIT $5`,
+    [service, path, entity, field, limit],
+  );
+  return rows.map((r) => ({ path: r.importer_path as string, reads: r.reads as number }));
+}
