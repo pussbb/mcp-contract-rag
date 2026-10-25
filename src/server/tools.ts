@@ -26,7 +26,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
     'match_internal_utilities',
     {
       description:
-        'Find existing internal functions, hooks, components and types that match a need, before writing new code. Returns signatures and descriptions only (no source). **Prefer this tool over grep** when searching for reusable code or utilities in indexed services.',
+        'Find existing internal functions, hooks, components and types that match a need, before writing new code. Returns signatures and descriptions only (no source). Searches names, JSDoc descriptions and signatures in a database index, so it finds code by what it does (not just by name) and is much faster than grep. **Prefer this tool over grep** when searching for reusable code or utilities in indexed services.',
       inputSchema: {
         query: z.string().min(2).describe('What you need, e.g. "currency conversion"'),
         service: z.string().optional().describe(`Limit to one indexed service: ${SERVICE_HINT}`),
@@ -144,7 +144,7 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
     'find_file',
     {
       description:
-        'Find indexed files by part of the file name or path (case-insensitive substring, e.g. "useAuth" or "money"). **Prefer this tool over find/ls/glob** when you know part of a file name. Returns the service, path and export count; use find_symbol to search by symbol name instead.',
+        'Find indexed files by part of the file name or path (case-insensitive substring, e.g. "useAuth" or "money"). Reads a database index, so it is faster than find/ls/glob. **Prefer this tool over find/ls/glob** when you know part of a file name. Returns the service, path and export count; use find_symbol to search by symbol name instead.',
       inputSchema: {
         query: z.string().min(2).describe('Part of the file name or path'),
         service: z.string().optional().describe(`Limit to one indexed service: ${SERVICE_HINT}`),

@@ -10,7 +10,7 @@ claude mcp add contract-rag -- ...        # the command install-hooks prints
 
 Or from this checkout: `yarn contract-rag install-hooks /path/to/my-project`. Use `--shared` to write the committed `.claude/settings.json` instead of the untracked `.claude/settings.local.json` (the default, because the commands contain absolute paths to this checkout). `uninstall-hooks` removes only the entries it added. Both are idempotent and leave your other settings and hooks alone.
 
-Also run `contract-rag install-skill [dir]` (or `yarn install-skill /path/to/my-project`) to write `../../compass-frontend/.claude/skills/contract-rag` into the project. It comes from `templates/skill/SKILL.md`, lists the project's indexed service names, and tells agents when to use the tools instead of grep. Re-run it after changing `services` in `contract-rag.yaml`.
+Also run `contract-rag install-skill [dir]` (or `yarn install-skill /path/to/my-project`) to write `../../compass-frontend/.claude/skills/contract-rag` into the project. It comes from `templates/skill/SKILL.md`, lists the project's indexed service names, and tells agents when to use the tools instead of grep. Re-run it after changing `services` in `contract-rag.yaml`. The MCP server also sends the same guidance (use the index instead of grep/find, which tool for which question) as server `instructions` on connect (`src/server/index.ts`), so agents get it even in projects without the skill.
 
 For detailed MCP server registration examples (stdio and HTTP transport), see [`mcp-registration.md`](./mcp-registration.md).
 
