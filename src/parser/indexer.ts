@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type pg from 'pg';
 import { config, languageOf, SOURCE_EXTENSIONS, type Language, type ServiceConfig } from '../config.js';
 import {
-  createPool, deleteFiles, ensureSchema, inSyncTransaction, loadStoredFiles, recomputePriority,
+  createPool, deleteFiles, deleteService, deleteAll, ensureSchema, inSyncTransaction, loadStoredFiles, recomputePriority,
   replaceEdges, replaceExports, replaceExternalDeps, upsertFiles,
   type DependencyRecord, type EdgeRecord, type ExportRecord, type FileRecord, type StoredFile,
 } from '../db/index.js';
@@ -339,6 +339,60 @@ function parseArgs(argv: string[]): Record<string, string> {
 
 export async function runIndexCli(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
+
+  // Handle reset commands
+  if (args['reset-all']) {
+    const pool = createPool();
+    try {
+      await ensureSchema(pool);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(7_340_121)');
+        await deleteAll(client);
+        await client.query('COMMIT');
+        console.error('Database reset: all data deleted');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } finally {
+      await pool.end();
+    }
+    return;
+  }
+
+  if (args['reset']) {
+    if (!args.service) {
+      console.error('--reset requires --service=NAME');
+      process.exitCode = 1;
+      return;
+    }
+    const pool = createPool();
+    try {
+      await ensureSchema(pool);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(7_340_121)');
+        await deleteService(client, args.service);
+        await client.query('COMMIT');
+        console.error(`Service reset: ${args.service} deleted`);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } finally {
+      await pool.end();
+    }
+    return;
+  }
+
+  // Normal sync
   let services = config.services;
   if (args.root) services = [{ name: args.service ?? path.basename(path.resolve(args.root)), root: path.resolve(args.root), ignoreDirs: [] }];
   else if (args.service) services = services.filter((s) => s.name === args.service);

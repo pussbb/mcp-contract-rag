@@ -86,6 +86,17 @@ export async function deleteFiles(client: pg.PoolClient, service: string, paths:
   await client.query('DELETE FROM codebase_files WHERE service_name = $1 AND file_path = ANY($2)', [service, paths]);
 }
 
+/** Delete all data for a specific service (files, exports, edges, dependencies). */
+export async function deleteService(client: pg.PoolClient, service: string): Promise<void> {
+  await client.query('DELETE FROM codebase_files WHERE service_name = $1', [service]);
+}
+
+/** Delete all data from all tables (reset entire database). */
+export async function deleteAll(client: pg.PoolClient): Promise<void> {
+  await client.query('DELETE FROM codebase_files');
+  await client.query('DELETE FROM codebase_meta');
+}
+
 /** Replaces all exports of `paths` with `rows`. */
 export async function replaceExports(client: pg.PoolClient, service: string, paths: string[], rows: ExportRecord[]): Promise<void> {
   if (paths.length) {
