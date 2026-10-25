@@ -18,4 +18,4 @@ yarn index
 yarn typecheck && yarn test
 ```
 
-Docs: `docs/hooks.md`, `docs/configuration.md`, `docs/architecture.md`, `docs/polyglot-spec.md`, `docs/concept.md`. Agent instructions: `AGENTS.md`.
+Docs: `docs/hooks.md`, `docs/mcp-registration.md`, `docs/configuration.md`, `docs/architecture.md`, `docs/polyglot-spec.md`, `docs/concept.md`. Agent instructions: `AGENTS.md`.

@@ -10,6 +10,8 @@ claude mcp add contract-rag -- ...        # the command install-hooks prints
 
 Or from this checkout: `yarn contract-rag install-hooks /path/to/my-project`. Use `--shared` to write the committed `.claude/settings.json` instead of the untracked `.claude/settings.local.json` (the default, because the commands contain absolute paths to this checkout). `uninstall-hooks` removes only the entries it added. Both are idempotent and leave your other settings and hooks alone.
 
+For detailed MCP server registration examples (stdio and HTTP transport), see [`mcp-registration.md`](./mcp-registration.md).
+
 The project needs a database (`database.url`) and, optionally, its own `contract-rag.yaml` in its root. Without one, the project directory is indexed as a single service named after the folder.
 
 ## What the hooks do
