@@ -19,3 +19,7 @@ yarn typecheck && yarn test
 ```
 
 Docs: `docs/hooks.md`, `docs/mcp-registration.md`, `docs/configuration.md`, `docs/architecture.md`, `docs/polyglot-spec.md`, `docs/concept.md`. Agent instructions: `AGENTS.md`.
+
+---
+
+*With love from AI to AI — because even AI has a sense of humor*
