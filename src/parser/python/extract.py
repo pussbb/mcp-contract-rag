@@ -27,7 +27,28 @@ def is_abstract_method(fn):
 def function_signature(fn, indent="", prefix=""):
     kw = "async def" if isinstance(fn, ast.AsyncFunctionDef) else "def"
     returns = f" -> {ast.unparse(fn.returns)}" if fn.returns else ""
-    return f"{indent}{prefix}{kw} {fn.name}({ast.unparse(fn.args)}){returns}: ..."
+    # Build args with type annotations
+    args_parts = []
+    for arg in fn.args.args:
+        arg_str = arg.arg
+        if arg.annotation:
+            arg_str += f": {ast.unparse(arg.annotation)}"
+        args_parts.append(arg_str)
+    # Handle *args
+    if fn.args.vararg:
+        vararg_str = f"*{fn.args.vararg.arg}"
+        if fn.args.vararg.annotation:
+            vararg_str += f": {ast.unparse(fn.args.vararg.annotation)}"
+        args_parts.append(vararg_str)
+    # Handle **kwargs
+    if fn.args.kwarg:
+        kwarg_str = f"**{fn.args.kwarg.arg}"
+        if fn.args.kwarg.annotation:
+            kwarg_str += f": {ast.unparse(fn.args.kwarg.annotation)}"
+        args_parts.append(kwarg_str)
+    # Handle defaults (simplified - just show the names for the signature)
+    args = ", ".join(args_parts)
+    return f"{indent}{prefix}{kw} {fn.name}({args}){returns}: ..."
 
 
 def extract_class(node):
@@ -114,6 +135,26 @@ def extract(source):
                         "signature": f"{target.id} = {const_value}",
                         "description": None,
                     })
+                # Extract type aliases (assignments with type annotations)
+                elif target.annotation and not target.id.startswith("_"):
+                    type_annotation = ast.unparse(target.annotation)
+                    type_value = ast.unparse(node.value)
+                    exports.append({
+                        "name": target.id,
+                        "type": "type",
+                        "signature": f"{target.id}: {type_annotation} = {type_value}",
+                        "description": None,
+                    })
+        # Extract type aliases from AnnAssign (PEP 526)
+        elif isinstance(node, ast.AnnAssign) and not node.target.id.startswith("_"):
+            type_annotation = ast.unparse(node.annotation)
+            value_str = f" = {ast.unparse(node.value)}" if node.value else ""
+            exports.append({
+                "name": node.target.id,
+                "type": "type",
+                "signature": f"{node.target.id}: {type_annotation}{value_str}",
+                "description": None,
+            })
 
     # Filter exports by __all__ if present
     if all_names is not None:

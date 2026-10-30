@@ -76,7 +76,7 @@ Resolved:
 - Hook cost: size+mtime pre-check skips reading unchanged files (`sync.mtimePrecheck`). A file watcher would remove the remaining stat walk.
 - Triage output is validated; the model returns indexes only and any failure falls back to the Tier 1 rows.
 - `priority_score` = folder weight + per-importer bonus (capped) + optional field-usage bonus (capped, off by default), all set in YAML (`ranking:`). The field-usage bonus is a correlated subquery in `recomputePriority`: Postgres rejects a `FROM`-clause join that references the `UPDATE` target, and that error rolls back the whole sync transaction, leaving the index empty.
-- Python extraction now includes module-level constants, `__all__` support, and function-level imports.
+- Python extraction now includes module-level constants, `__all__` support, function-level imports, type annotations in function signatures, and type aliases (PEP 526).
 - C# extraction now includes nested types (up to depth 3) and extension method detection.
 
 Still open: cross-service edges (requires significant design for detection mechanisms), C# `global using`, file watcher for hooks (requires separate daemon process). See [`polyglot-spec.md`](./polyglot-spec.md).
