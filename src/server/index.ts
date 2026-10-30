@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { createPool, ensureSchema } from '../db/index.js';
 import { registerResources } from './resources.js';
@@ -26,21 +27,59 @@ const server = new McpServer({ name: config.server.name, version: '0.1.0' }, { i
 registerTools(server, pool);
 registerResources(server, pool);
 
+// Session management for HTTP transport
+const transports = new Map<string, StreamableHTTPServerTransport>();
+
 if (config.server.transport === 'http') {
-  // HTTP/Streamable transport
+  // HTTP/Streamable transport with persistent server
   const app = createMcpExpressApp();
   app.post('/mcp', async (req: Request, res: Response) => {
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    await server.connect(transport);
+    // Get or create session ID from header
+    const sessionId = req.headers['x-mcp-session-id'] as string || randomUUID();
+
+    // Get or create transport for this session
+    let transport = transports.get(sessionId);
+    if (!transport) {
+      transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => sessionId });
+      await server.connect(transport);
+      transports.set(sessionId, transport);
+    }
+
     await transport.handleRequest(req, res, req.body);
+
+    // Clean up transport on connection close
     res.on('close', () => {
-      transport.close();
-      server.close();
+      // Keep transport alive for potential reconnection, but could add timeout logic here
+      // For now, we don't immediately close to support streaming responses
     });
   });
 
-  app.listen(config.server.port, () => {
+  // Health check endpoint
+  app.get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok', transport: 'http', activeSessions: transports.size });
+  });
+
+  const httpServer = app.listen(config.server.port, () => {
     console.error(`${config.server.name} MCP server ready on HTTP port ${config.server.port}`);
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.error('SIGTERM received, shutting down HTTP server...');
+    httpServer.close(() => {
+      console.error('HTTP server closed');
+      pool.end();
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    console.error('SIGINT received, shutting down HTTP server...');
+    httpServer.close(() => {
+      console.error('HTTP server closed');
+      pool.end();
+      process.exit(0);
+    });
   });
 } else {
   // stdio transport (default)

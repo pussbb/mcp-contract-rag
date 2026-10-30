@@ -79,7 +79,7 @@ Resolved:
 - Python extraction now includes module-level constants, `__all__` support, and function-level imports.
 - C# extraction now includes nested types (up to depth 3) and extension method detection.
 
-Still open: HTTP transport, cross-service edges, C# `global using`. See [`polyglot-spec.md`](./polyglot-spec.md).
+Still open: cross-service edges, C# `global using`, file watcher for hooks. See [`polyglot-spec.md`](./polyglot-spec.md).
 
 ## 7. Configuration
 

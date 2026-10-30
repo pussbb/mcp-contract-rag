@@ -72,7 +72,7 @@ All database writes happen in Node, in one transaction per service under an advi
 
 ## Not implemented yet
 
-- **HTTP transport.** The spec wants a persistent server on port 3001. The server currently speaks stdio, launched by `../_.mcp.json`. Streamable HTTP (one transport per session) is the follow-up if a shared long-running server is needed.
+- **HTTP transport.** Streamable HTTP is now implemented with session management and graceful shutdown. Set `server.transport: http` in `contract-rag.yaml` to use it. The server provides a `/health` endpoint and supports session persistence via `x-mcp-session-id` header.
 - **Cross-service links.** Edges stay inside one service. Frontend-to-backend API relations are not modelled.
 - **Python details.** Imports inside functions are now tracked. Module-level constants and `__all__` are now extracted. Absolute imports resolve from the service root or `src/`.
 - **.NET depth.** Nested types (up to depth 3) and extension methods are now indexed. Type references are matched by simple name, so two same-named types in visible namespaces both get an edge. `global using` is not yet tracked.
