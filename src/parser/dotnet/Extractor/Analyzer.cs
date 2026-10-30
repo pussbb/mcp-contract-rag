@@ -4,12 +4,13 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-/// <summary>Extracts top-level type contracts (no bodies) from one C# source file.</summary>
+/// <summary>Extracts type contracts (no bodies) from one C# source file, including nested types.</summary>
 static class Analyzer
 {
     const int MaxSignature = 1200;
     const int MaxDescription = 400;
     const int MaxMembers = 40;
+    const int MaxNestedDepth = 3;
 
     public static AnalysisResult Analyze(string source)
     {
@@ -17,17 +18,23 @@ static class Analyzer
         var exports = new List<ExportInfo>();
         var seen = new HashSet<string>();
 
-        void Walk(SyntaxList<MemberDeclarationSyntax> members, string ns)
+        void Walk(SyntaxList<MemberDeclarationSyntax> members, string ns, int depth)
         {
+            if (depth > MaxNestedDepth) return;
             foreach (var member in members)
             {
                 switch (member)
                 {
                     case BaseNamespaceDeclarationSyntax n:
-                        Walk(n.Members, ns.Length == 0 ? n.Name.ToString() : ns + "." + n.Name);
+                        Walk(n.Members, ns.Length == 0 ? n.Name.ToString() : ns + "." + n.Name, depth);
                         break;
                     case BaseTypeDeclarationSyntax t when TopLevelVisible(t.Modifiers):
                         Add(t.Identifier.Text, TypeKind(t), TypeSignature(t, source), t, t.AttributeLists, ns);
+                        // Walk nested types
+                        if (t is TypeDeclarationSyntax td)
+                        {
+                            Walk(td.Members, ns, depth + 1);
+                        }
                         break;
                     case DelegateDeclarationSyntax d when TopLevelVisible(d.Modifiers):
                         Add(d.Identifier.Text, "delegate", Truncate(Slice(source, StartOf(d), d.Span.End).TrimEnd(';')), d, d.AttributeLists, ns);
@@ -45,7 +52,7 @@ static class Analyzer
             exports.Add(new ExportInfo(name, type, signature, description, ns));
         }
 
-        Walk(root.Members, "");
+        Walk(root.Members, "", 0);
 
         var imports = root.DescendantNodes().OfType<UsingDirectiveSyntax>()
             .Where(u => u.StaticKeyword.IsKind(SyntaxKind.None) && u.Name is not null)
@@ -104,7 +111,10 @@ static class Analyzer
         switch (m)
         {
             case MethodDeclarationSyntax x when x.ExplicitInterfaceSpecifier is null:
-                return Slice(source, start, EndBefore(x, x.Body, x.ExpressionBody)).TrimEnd(';').TrimEnd();
+                // Mark extension methods
+                var isExtension = x.Modifiers.Any(m => m.Text == "this");
+                var sig = Slice(source, start, EndBefore(x, x.Body, x.ExpressionBody)).TrimEnd(';').TrimEnd();
+                return isExtension ? sig + " // extension method" : sig;
             case ConstructorDeclarationSyntax x:
                 return Slice(source, start, EndBefore(x, x.Initializer, x.Body, x.ExpressionBody)).TrimEnd(';').TrimEnd();
             case PropertyDeclarationSyntax x when x.ExplicitInterfaceSpecifier is null:

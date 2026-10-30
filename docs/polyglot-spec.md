@@ -74,8 +74,8 @@ All database writes happen in Node, in one transaction per service under an advi
 
 - **HTTP transport.** The spec wants a persistent server on port 3001. The server currently speaks stdio, launched by `../_.mcp.json`. Streamable HTTP (one transport per session) is the follow-up if a shared long-running server is needed.
 - **Cross-service links.** Edges stay inside one service. Frontend-to-backend API relations are not modelled.
-- **Python details.** Module-level constants, `__all__`, and imports inside functions are ignored. Absolute imports resolve from the service root or `src/`.
-- **.NET depth.** Only top-level types are indexed (no nested types, no extension-method discovery, no `global using`). Type references are matched by simple name, so two same-named types in visible namespaces both get an edge.
+- **Python details.** Imports inside functions are now tracked. Module-level constants and `__all__` are now extracted. Absolute imports resolve from the service root or `src/`.
+- **.NET depth.** Nested types (up to depth 3) and extension methods are now indexed. Type references are matched by simple name, so two same-named types in visible namespaces both get an edge. `global using` is not yet tracked.
 - **Hook cost.** Unchanged files are skipped by size and mtime without reading them (`sync.mtimePrecheck`); every sync still stats each file. A file watcher would remove that last walk.
 
 ## Running it
