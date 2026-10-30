@@ -73,10 +73,10 @@ All database writes happen in Node, in one transaction per service under an advi
 ## Not implemented yet
 
 - **HTTP transport.** Streamable HTTP is now implemented with session management and graceful shutdown. Set `server.transport: http` in `contract-rag.yaml` to use it. The server provides a `/health` endpoint and supports session persistence via `x-mcp-session-id` header.
-- **Cross-service links.** Edges stay inside one service. Frontend-to-backend API relations are not modelled.
+- **Cross-service links.** Edges stay inside one service. Frontend-to-backend API relations are not modelled. This requires significant design work to define detection mechanisms (automatic vs configuration-based) and database schema updates.
 - **Python details.** Imports inside functions are now tracked. Module-level constants and `__all__` are now extracted. Absolute imports resolve from the service root or `src/`.
 - **.NET depth.** Nested types (up to depth 3) and extension methods are now indexed. Type references are matched by simple name, so two same-named types in visible namespaces both get an edge. `global using` is not yet tracked.
-- **Hook cost.** Unchanged files are skipped by size and mtime without reading them (`sync.mtimePrecheck`); every sync still stats each file. A file watcher would remove that last walk.
+- **Hook cost.** Unchanged files are skipped by size and mtime without reading them (`sync.mtimePrecheck`); every sync still stats each file. A file watcher would require a separate long-running daemon process and IPC mechanism, which is a significant architectural change.
 
 ## Running it
 
