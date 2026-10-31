@@ -74,28 +74,27 @@ export async function searchDocs(
   limit: number,
   service?: string,
 ): Promise<SearchResult[]> {
-  const params: (string | number)[] = [];
-  const conditions: string[] = [];
+  const params: (string | number)[] = [query];
+  const conditions = [
+    `to_tsvector('english', content) @@ plainto_tsquery('english', $1)`,
+  ];
 
   if (service) {
-    conditions.push('service_name = $1');
     params.push(service);
+    conditions.push(`service_name = $${params.length}`);
   }
 
-  const whereClause = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-  const paramIndex = params.length + 1;
+  params.push(limit);
+  const limitParam = params.length;
 
   const sql = `
     SELECT service_name, file_path, file_name, content, language,
-           ts_rank(to_tsvector('english', content), plainto_tsquery('english', $${paramIndex})) * COALESCE(folder_multiplier, 1) as rank
+           ts_rank(to_tsvector('english', content), plainto_tsquery('english', $1)) * COALESCE(folder_multiplier, 1) as rank
     FROM codebase_docs
-    ${whereClause}
-    AND to_tsvector('english', content) @@ plainto_tsquery('english', $${paramIndex})
+    WHERE ${conditions.join(' AND ')}
     ORDER BY rank DESC
-    LIMIT $${paramIndex + 1}
+    LIMIT $${limitParam}
   `;
-
-  params.push(query, limit);
 
   const { rows } = await pool.query(sql, params);
   return rows.map((r) => ({

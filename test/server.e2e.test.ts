@@ -42,6 +42,12 @@ services:
 `);
   const env = { ...process.env, CONTRACT_RAG_CONFIG: configFile } as Record<string, string>;
   execFileSync('yarn', ['--silent', 'index'], { cwd: repo, env, stdio: 'ignore' });
+  await admin.query(
+    `INSERT INTO ${SCHEMA}.codebase_docs (service_name, file_path, file_name, content_hash, content, language)
+     VALUES
+       ('cs-fixture', 'docs/authentication.md', 'authentication.md', 'hash-cs', 'Authentication auth login token.', 'markdown'),
+       ('py-fixture', 'docs/security.md', 'security.md', 'hash-py', 'Authentication auth login token validation.', 'markdown')`,
+  );
   client = new Client({ name: 'e2e', version: '0' });
   await client.connect(new StdioClientTransport({ command: 'yarn', args: ['--silent', 'start'], cwd: repo, env }));
 });
@@ -122,6 +128,17 @@ test('search_by_type filters by type, with and without a keyword', opts, async (
   assert.ok(all.some((c: { name: string }) => c.name === 'Repository'));
   const keyed = await call('search_by_type', { type: 'abstract_class', query: 'exporter', service: 'py-fixture' });
   assert.deepEqual(keyed.map((c: { name: string }) => c.name), ['Exporter']);
+});
+
+test('search_documents supports keyword search across services and within one service', opts, async () => {
+  const all = await call('search_documents', { query: 'authentication' });
+  assert.deepEqual(all.results.map((r: { service: string }) => r.service).sort(), ['cs-fixture', 'py-fixture']);
+
+  const terms = await call('search_documents', { query: 'auth login token' });
+  assert.deepEqual(terms.results.map((r: { service: string }) => r.service).sort(), ['cs-fixture', 'py-fixture']);
+
+  const one = await call('search_documents', { query: 'authentication', service: 'cs-fixture' });
+  assert.deepEqual(one.results.map((r: { service: string }) => r.service), ['cs-fixture']);
 });
 
 test('resources: high-priority and per-service template', opts, async () => {
