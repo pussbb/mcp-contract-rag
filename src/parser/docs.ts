@@ -16,6 +16,18 @@ export function detectLanguage(file: string): string {
   return 'unknown';
 }
 
+/** Calculate folder multiplier based on configured folder patterns. */
+function getFolderMultiplier(filePath: string): number {
+  const lowerPath = filePath.toLowerCase();
+  for (const folder of config.docs.folders) {
+    if (!folder.enabled) continue;
+    if (lowerPath.includes(folder.path.toLowerCase())) {
+      return folder.multiplier;
+    }
+  }
+  return 1;
+}
+
 /** Walk a directory and find all documentation files. */
 export async function crawlDocs(root: string, extraIgnoreDirs: string[] = []): Promise<string[]> {
   const ignored = new Set([...config.ignore.dirs, ...extraIgnoreDirs]);
@@ -55,6 +67,7 @@ export async function extractDoc(root: string, relPath: string): Promise<DocReco
     language: detectLanguage(relPath),
     size: st.size,
     mtime: Math.floor(st.mtimeMs),
+    folderMultiplier: getFolderMultiplier(relPath),
   };
 }
 

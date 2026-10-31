@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS codebase_docs (
     language       TEXT NOT NULL,
     size_bytes     BIGINT,
     mtime_ms       BIGINT,
+    folder_multiplier INT DEFAULT 1,
     created_at     TIMESTAMPTZ DEFAULT NOW(),
     updated_at     TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT codebase_docs_pk PRIMARY KEY (service_name, file_path)
@@ -134,3 +135,6 @@ CREATE INDEX IF NOT EXISTS idx_docs_content_tsv ON codebase_docs USING gin (to_t
 
 -- Index for searching by file name
 CREATE INDEX IF NOT EXISTS idx_docs_name_trgm ON codebase_docs USING gin (file_name gin_trgm_ops);
+
+-- Index for folder multiplier
+CREATE INDEX IF NOT EXISTS idx_docs_folder_multiplier ON codebase_docs (folder_multiplier DESC);

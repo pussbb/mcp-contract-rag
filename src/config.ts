@@ -121,6 +121,15 @@ const schema = z.object({
     maxTokens: int.default(4000),
     /** Max document length in characters for full-text search. */
     maxContentLength: int.default(100000),
+    /** Folder-specific configurations for document indexing. */
+    folders: z.array(z.object({
+      /** Path pattern (case-insensitive) to match folder paths. */
+      path: z.string(),
+      /** Multiplier for relevance score (higher = more important). */
+      multiplier: int.default(1),
+      /** Whether to index this folder. */
+      enabled: bool.default(true),
+    })).default([]),
   }).prefault({}),
   services: z.array(z.object({
     name: z.string().min(1),

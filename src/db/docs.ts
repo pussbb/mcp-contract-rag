@@ -9,6 +9,7 @@ export interface DocRecord {
   language: string;
   size: number;
   mtime: number;
+  folderMultiplier: number;
 }
 
 export interface StoredDoc {
@@ -40,11 +41,12 @@ export async function loadStoredDocs(client: pg.PoolClient, service: string): Pr
 export async function upsertDocs(client: pg.PoolClient, service: string, docs: DocRecord[]): Promise<void> {
   if (!docs.length) return;
   await client.query(
-    `INSERT INTO codebase_docs (service_name, file_path, file_name, content_hash, content, language, size_bytes, mtime_ms)
-     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bigint[], $8::bigint[])
+    `INSERT INTO codebase_docs (service_name, file_path, file_name, content_hash, content, language, size_bytes, mtime_ms, folder_multiplier)
+     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bigint[], $8::bigint[], $9::int[])
      ON CONFLICT (service_name, file_path) DO UPDATE
         SET content_hash = EXCLUDED.content_hash, content = EXCLUDED.content,
-            size_bytes = EXCLUDED.size_bytes, mtime_ms = EXCLUDED.mtime_ms, updated_at = NOW()`,
+            size_bytes = EXCLUDED.size_bytes, mtime_ms = EXCLUDED.mtime_ms,
+            folder_multiplier = EXCLUDED.folder_multiplier, updated_at = NOW()`,
     [
       service,
       docs.map((d) => d.path),
@@ -54,6 +56,7 @@ export async function upsertDocs(client: pg.PoolClient, service: string, docs: D
       docs.map((d) => d.language),
       docs.map((d) => d.size),
       docs.map((d) => d.mtime),
+      docs.map((d) => d.folderMultiplier),
     ],
   );
 }
@@ -84,7 +87,7 @@ export async function searchDocs(
 
   const sql = `
     SELECT service_name, file_path, file_name, content, language,
-           ts_rank(to_tsvector('english', content), plainto_tsquery('english', $${paramIndex})) as rank
+           ts_rank(to_tsvector('english', content), plainto_tsquery('english', $${paramIndex})) * COALESCE(folder_multiplier, 1) as rank
     FROM codebase_docs
     ${whereClause}
     AND to_tsvector('english', content) @@ plainto_tsquery('english', $${paramIndex})
