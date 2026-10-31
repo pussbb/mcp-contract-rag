@@ -2,10 +2,18 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
-import type { DocRecord } from '../db/docs.js';
+import type { DocRecord, StoredDoc } from '../db/docs.js';
 
 const DOC_EXTENSIONS = config.docs.extensions;
 const MAX_CONTENT_LENGTH = config.docs.maxContentLength;
+
+/** Return existing documents whose content hash has changed. */
+export function getChangedDocPaths(paths: string[], stored: ReadonlyMap<string, StoredDoc>, hashes: ReadonlyMap<string, string>): string[] {
+  return paths.filter((rel) => {
+    const previous = stored.get(rel);
+    return previous !== undefined && previous.hash !== hashes.get(rel);
+  });
+}
 
 /** Detect document language from file extension. */
 export function detectLanguage(file: string): string {

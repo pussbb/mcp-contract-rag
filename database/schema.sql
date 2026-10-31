@@ -115,7 +115,6 @@ CREATE INDEX IF NOT EXISTS idx_field_usage_entity ON codebase_field_usage (servi
 
 -- Documentation files: Markdown, reStructuredText, and other docs for search
 CREATE TABLE IF NOT EXISTS codebase_docs (
-    id             SERIAL PRIMARY KEY,
     service_name   TEXT NOT NULL,
     file_path      TEXT NOT NULL,
     file_name      TEXT NOT NULL,

@@ -14,7 +14,7 @@ import { analyzeDotnet, packageForNamespace, resolveDotnetEdges } from './dotnet
 import { runExtractor } from './external.js';
 import { analyzeSource, type Analysis } from './extract.js';
 import { createResolver, externalPackage, type Resolver } from './resolve.js';
-import { crawlDocs, extractDocs } from './docs.js';
+import { crawlDocs, extractDocs, getChangedDocPaths } from './docs.js';
 
 const PY_EXTRACTOR = fileURLToPath(new URL('./python/extract.py', import.meta.url));
 
@@ -348,7 +348,7 @@ async function syncDocs(client: pg.PoolClient, service: string, root: string, ex
     hashes.set(rel, createHash('md5').update(content).digest('hex'));
   }
 
-  const changed = docRels.filter((p) => stored.get(p)?.hash !== hashes.get(p));
+  const changed = getChangedDocPaths(docRels, stored, hashes);
 
   if (!removed.length && !added.length && !changed.length) return;
 
