@@ -8,11 +8,13 @@ import {
   createPool, deleteFiles, deleteService, deleteAll, ensureSchema, inSyncTransaction, loadStoredFiles, recomputePriority,
   replaceEdges, replaceExports, replaceExternalDeps, replaceFieldUsage, upsertFiles,
   type DependencyRecord, type EdgeRecord, type ExportRecord, type FieldUsageRecord, type FileRecord, type StoredFile,
+  loadStoredDocs, upsertDocs, deleteDocs, type DocRecord,
 } from '../db/index.js';
 import { analyzeDotnet, packageForNamespace, resolveDotnetEdges } from './dotnet.js';
 import { runExtractor } from './external.js';
 import { analyzeSource, type Analysis } from './extract.js';
 import { createResolver, externalPackage, type Resolver } from './resolve.js';
+import { crawlDocs, extractDocs } from './docs.js';
 
 const PY_EXTRACTOR = fileURLToPath(new URL('./python/extract.py', import.meta.url));
 
@@ -320,11 +322,45 @@ export async function syncService(service: ServiceConfig, { pool, log = () => {}
 
       // Recompute priority scores based on folder weights and inbound edges
       await recomputePriority(client, name);
+
+      // Sync documentation files
+      await syncDocs(client, name, root, service.ignoreDirs, log);
+
       return stats;
     });
   } finally {
     if (ownPool) await pool.end();
   }
+}
+
+/** Sync documentation files separately from source code. */
+async function syncDocs(client: pg.PoolClient, service: string, root: string, extraIgnoreDirs: string[], log: (m: string) => void): Promise<void> {
+  const docRels = await crawlDocs(root, extraIgnoreDirs);
+  const stored = await loadStoredDocs(client, service);
+
+  const removed = [...stored.keys()].filter((p) => !docRels.includes(p));
+  const added = docRels.filter((p) => !stored.has(p));
+
+  // Compute hashes for changed detection
+  const hashes = new Map<string, string>();
+  for (const rel of docRels) {
+    const content = await readFile(path.join(root, rel), 'utf8');
+    hashes.set(rel, createHash('md5').update(content).digest('hex'));
+  }
+
+  const changed = docRels.filter((p) => stored.get(p)?.hash !== hashes.get(p));
+
+  if (!removed.length && !added.length && !changed.length) return;
+
+  log(`Syncing docs: ${added.length} added, ${changed.length} changed, ${removed.length} removed`);
+
+  await deleteDocs(client, service, removed);
+
+  const toExtract = [...added, ...changed];
+  const extracted = await extractDocs(root, toExtract);
+  const docRecords: DocRecord[] = extracted.map((d) => ({ ...d, service }));
+
+  await upsertDocs(client, service, docRecords);
 }
 
 /** Sync every configured service over one shared pool. */

@@ -114,6 +114,14 @@ const schema = z.object({
       autoBuild: bool.default(true),
     }).prefault({}),
   }).prefault({}),
+  docs: z.object({
+    /** File extensions to index as documentation. */
+    extensions: z.array(z.string()).default(['.md', '.markdown', '.rst', '.txt']),
+    /** Max tokens to send to local AI for relevance scoring. */
+    maxTokens: int.default(4000),
+    /** Max document length in characters for full-text search. */
+    maxContentLength: int.default(100000),
+  }).prefault({}),
   services: z.array(z.object({
     name: z.string().min(1),
     /** Relative to the config file. */

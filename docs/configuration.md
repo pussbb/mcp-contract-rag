@@ -33,6 +33,9 @@ database:
 | `languages.<lang>.extensions` | ts/tsx/js/jsx/mjs, py, cs | language is chosen per file by extension |
 | `languages.python.command` | `python3` | interpreter for the Python extractor |
 | `languages.csharp.command` / `autoBuild` | `dotnet` / `true` | .NET SDK and whether the Roslyn extractor is built on first use |
+| `docs.extensions` | .md, .markdown, .rst, .txt | file extensions to index as documentation |
+| `docs.maxTokens` | `4000` | max tokens to send to local AI for document relevance scoring |
+| `docs.maxContentLength` | `100000` | max document length in characters for full-text search |
 | `services[]` | one service named after the working directory | `name`, `root` (relative to the YAML file), optional `ignoreDirs` |
 
 ## What stays outside YAML

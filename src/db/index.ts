@@ -4,3 +4,4 @@ export { searchExports, streamTopExports, streamSymbols, streamFileExports, stre
 export { recordToolUsage, usageSummary, type ToolUsage, type UsageSummaryRow } from './usage.js';
 export { streamRows } from './stream.js';
 export * from './sync.js';
+export * from './docs.js';

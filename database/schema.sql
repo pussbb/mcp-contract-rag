@@ -112,3 +112,25 @@ CREATE TABLE IF NOT EXISTS codebase_field_usage (
 );
 
 CREATE INDEX IF NOT EXISTS idx_field_usage_entity ON codebase_field_usage (service_name, file_path, entity_name, field_name);
+
+-- Documentation files: Markdown, reStructuredText, and other docs for search
+CREATE TABLE IF NOT EXISTS codebase_docs (
+    id             SERIAL PRIMARY KEY,
+    service_name   TEXT NOT NULL,
+    file_path      TEXT NOT NULL,
+    file_name      TEXT NOT NULL,
+    content_hash   TEXT NOT NULL,
+    content        TEXT NOT NULL,
+    language       TEXT NOT NULL,
+    size_bytes     BIGINT,
+    mtime_ms       BIGINT,
+    created_at     TIMESTAMPTZ DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT codebase_docs_pk PRIMARY KEY (service_name, file_path)
+);
+
+-- Full-text search on document content
+CREATE INDEX IF NOT EXISTS idx_docs_content_tsv ON codebase_docs USING gin (to_tsvector('english', content));
+
+-- Index for searching by file name
+CREATE INDEX IF NOT EXISTS idx_docs_name_trgm ON codebase_docs USING gin (file_name gin_trgm_ops);

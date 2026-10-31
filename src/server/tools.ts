@@ -6,6 +6,7 @@ import { searchExports, streamSymbols, streamFileExports, getImporters, getField
 import { triage } from '../triage/lmstudio.js';
 import { collectText, jsonArray } from './json-stream.js';
 import { toManifest } from './resources.js';
+import { searchDocuments } from './doc-search.js';
 
 const SERVICE_HINT = 'the indexed service name as configured in contract-rag.yaml (e.g. "frontend"), not the repo folder name';
 const PATH_HINT = 'path relative to the service root, without a src/ prefix';
@@ -203,6 +204,23 @@ export function registerTools(server: McpServer, pool: pg.Pool): void {
       if (bad) return bad;
       const contracts = await searchByType(pool, type, query, service);
       return { content: [{ type: 'text', text: JSON.stringify(contracts.map(toManifest), null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'search_documents',
+    {
+      description: 'Search documentation files (Markdown, reStructuredText, txt) using full-text search and optional AI relevance scoring. Returns document content with relevance scores. **Use this for searching docs, README files, and technical documentation** in indexed services.',
+      inputSchema: {
+        query: z.string().min(2).describe('Search query for documentation'),
+        service: z.string().optional().describe(`Limit to one indexed service: ${SERVICE_HINT}`),
+      },
+    },
+    async ({ query, service }) => {
+      const bad = await unknownServiceError(pool, service);
+      if (bad) return bad;
+      const result = await searchDocuments(query, pool, service);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     },
   );
 }
